@@ -1,6 +1,8 @@
-// app/api/events/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { TicketmasterEvent, ApiCacheEntry, Event } from '@/types';
+import { Chronos} from '@jstiava/chronos';
+const chronos = new Chronos();
+import dayjs  from 'dayjs';
 
 const TICKETMASTER_API_KEY = "pmbdy5uLSZnpbGGenJyLkA7xeRCPS20L";
 
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
     // Cache the result
     eventsCache[cacheKey] = {
       data: events,
-      expiry: new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now
+      expiry: dayjs().add(1, 'hour').toDate() 
     };
 
     console.log('Successfully fetched and cached events:', events.events.length);
@@ -149,8 +151,7 @@ function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
   let imageUrl = "https://via.placeholder.com/800x600?text=Event+Image";
   
   if (ticketmasterEvent.images?.length) {
-    hasImage = true;
-    // Prefer larger images for better quality
+    hasImage = true; 
     const suitableImages = ticketmasterEvent.images.filter(img => (img.width || 0) >= 400);
     if (suitableImages.length > 0) {
       imageUrl = suitableImages[0].url;
@@ -191,7 +192,7 @@ function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
   
   if (ticketmasterEvent.dates?.start) {
     if (ticketmasterEvent.dates.start.localDate) {
-      startDate = ticketmasterEvent.dates.start.localDate;
+        startDate = dayjs(ticketmasterEvent.dates.start.localDate).format('YYYY-MM-DD');
     }
     
     if (ticketmasterEvent.dates.start.localTime) {

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -12,16 +11,12 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ onAuthenticated }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Simple password for demo - in production, use proper authentication
   const ADMIN_PASSWORD = 'admin123';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    // Simulate authentication delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (password === ADMIN_PASSWORD) {
       onAuthenticated();

@@ -37,7 +37,7 @@
     ) rgb(var(--background-start-rgb));
   }
   
-  /* Custom scrollbar */
+ 
   ::-webkit-scrollbar {
     width: 8px;
   }
@@ -55,57 +55,4 @@
     background: #555;
   }
   
-  /* Loading animation */
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
   
-  .loading-spinner {
-    animation: spin 1s linear infinite;
-  }
-  
-  /* Custom button hover effects */
-  .btn-primary {
-    background-color: #ef4444; /* red-500 */
-    color: white;
-    font-weight: 500;
-    padding: 0.5rem 1rem;
-    border-radius: 0.25rem;
-    transition: background-color 0.2s ease-in-out;
-    border: none;
-    cursor: pointer;
-  }
-  
-  .btn-primary:hover {
-    background-color: #dc2626; /* red-600 */
-  }
-  
-  .btn-secondary {
-    background-color: #6b7280; /* gray-500 */
-    color: white;
-    font-weight: 500;
-    padding: 0.5rem 1rem;
-    border-radius: 0.25rem;
-    transition: background-color 0.2s ease-in-out;
-    border: none;
-    cursor: pointer;
-  }
-  
-  .btn-secondary:hover {
-    background-color: #4b5563; /* gray-600 */
-  }
-  
-  /* Card hover effects */
-  .event-card {
-    transition: all 0.3s ease-in-out;
-  }
-  
-  .event-card:hover {
-    transform: translateY(-0.25rem);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  }

@@ -1,7 +1,9 @@
-// app/api/events/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { TicketmasterEvent, ApiCacheEntry, Event } from '@/types';
-
+import { Chronos} from '@jstiava/chronos';
+const chronos = new Chronos();
+import dayjs  from 'dayjs';
 const TICKETMASTER_API_KEY = "pmbdy5uLSZnpbGGenJyLkA7xeRCPS20L";
 
 // In-memory cache
@@ -17,9 +19,11 @@ export async function GET(request: NextRequest) {
     const cacheKey = `events_${targetCount}_${maxPages}_${currentPage}`;
     
     // Check cache first
+    const a = dayjs()
+    // const b = a.add(7, 'day')
     if (eventsCache[cacheKey]) {
       const cacheEntry = eventsCache[cacheKey];
-      if (new Date() < cacheEntry.expiry) {
+      if (dayjs.valueOf() < cacheEntry.expiry) {
         return NextResponse.json(cacheEntry.data);
       }
     }
@@ -30,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Cache the result
     eventsCache[cacheKey] = {
       data: events,
-      expiry: new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now
+      expiry: dayjs().add(1, 'hour').toDate() // 1 hour from now
     };
 
     return NextResponse.json(events);
@@ -42,6 +46,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
 
 async function fetchTicketmasterEvents(
   targetCount: number, 
@@ -78,9 +83,8 @@ async function fetchTicketmasterEvents(
       processSingleEvent(event)
     );
 
-    // Filter events (add your filtering logic here)
-    const filteredEvents = processedEvents.filter((event: { has_price: any; has_image: any; }) => {
-      // Example filters - adjust based on your needs
+   
+    const filteredEvents = processedEvents.filter((event: { has_price: any; has_image: any; }) => {   
       return event.has_price && event.has_image;
     });
 
@@ -152,14 +156,13 @@ function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
   
   if (ticketmasterEvent.dates?.start) {
     if (ticketmasterEvent.dates.start.localDate) {
-      startDate = ticketmasterEvent.dates.start.localDate;
+      startDate = dayjs(ticketmasterEvent.dates.start.localDate).format('YYYY-MM-DD');
     }
     
     if (ticketmasterEvent.dates.start.localTime) {
-      startTime = ticketmasterEvent.dates.start.localTime;
-      const [hour, minute] = startTime.split(':').map(Number);
-      const endHour = (hour + 3) % 24;
-      endTime = `${endHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`;
+        const startDateTime = dayjs(`2000-01-01 ${startTime}`); // Using dummy date for time manipulation
+        const endDateTime = startDateTime.add(3, 'hours');
+        endTime = endDateTime.format('HH:mm:ss');
     }
   }
   

@@ -13,31 +13,26 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
   const Cart = useCart();
 
   const handleViewDetails = () => {
-    // For now, just show an alert with event details
-    // Later you can navigate to a proper details page
     alert(`Event: ${event.title}\n\nDescription: ${event.description}\n\nLocation: ${event.location}\n\nDate: ${event.startDate}\nTime: ${event.startTime}`);
   };
 
   const handleAddToCart = () => {
     Cart.addToCart(event);
-    // Optional: Show a brief confirmation
     alert(`${event.title} added to cart!`);
   };
 
   return (
-    <div className="event-card bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-      {/* Fixed image container with consistent dimensions */}
+    <div className="event-card bg-white rounded-lg shadow-md overflow-hidden border border-gray-200"> 
       <div className="relative w-full h-48 overflow-hidden">
         <img
           src={event.image}
           alt={event.title}
           className="w-full h-full object-cover"
-          onError={(e) => {
-            // Fallback image if the original fails to load
+          onError={(e) => { 
             e.currentTarget.src = "https://via.placeholder.com/400x300?text=Event+Image";
           }}
         />
-        {/* Price badge */}
+        {/* Price */}
         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-sm font-medium">
           {event.price}
         </div>

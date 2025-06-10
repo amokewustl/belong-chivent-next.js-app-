@@ -1,10 +1,9 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'mypassword';
+const ADMIN_PASSWORD = 'admin123';
 
 export default function AdminLayout({
   children,
@@ -76,7 +75,7 @@ export default function AdminLayout({
               </code>
             </div>
             <p className="text-sm text-gray-500">
-              Please contact your administrator for the correct access URL.
+              Please contact an admin for the correct access URL.
             </p>
           </div>
           

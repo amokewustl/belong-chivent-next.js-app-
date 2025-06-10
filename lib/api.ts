@@ -40,13 +40,7 @@ export const fetchEnoughEvents = async (
   } catch (error) {
     console.error("Error fetching events:", error);
     
-    // More detailed error information
-    if (error instanceof Error) {
-      console.error("Error name:", error.name);
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
     }
     
     return { events: [], filteredCount: 0 };
-  }
-};
+  };
