@@ -38,4 +38,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+next-env.d.tsauth/
+auth/login.ts
+auth/register.ts
+auth/me.ts
+auth/logout.ts
+app/api/auth/

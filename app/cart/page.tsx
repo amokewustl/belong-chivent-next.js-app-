@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Typography, Button, Paper, Box, TextField, Alert, CircularProgress, Divider} from '@mui/material';
+import { Delete, ShoppingBag, ArrowBack } from '@mui/icons-material';
 import { useCart } from '@/context/CartContext';
 
 export default function CartPage() {
@@ -40,107 +42,134 @@ export default function CartPage() {
 
   if (orderComplete) {
     return (
-      <div className="text-center py-12">
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-8 rounded-lg max-w-md mx-auto">
-          <h2 className="text-2xl font-bold mb-4">Order Complete!</h2>
-          <p className="mb-4">Thank you for your purchase! (This is a demo, no actual purchase was made)</p>
-          <button
+      <Box className="text-center" sx={{ py: 8 }}>
+        <Alert severity="success" sx={{ maxWidth: 500, mx: 'auto', p: 4 }}>
+          <Typography variant="h5" gutterBottom>
+            Order Complete!
+          </Typography>
+          <Typography variant="body1" sx={{ mb: 3 }}>
+            Thank you for your purchase! (This is a demo, no actual purchase was made)
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
             onClick={handleReturnToEvents}
-            className="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded transition-colors"
+            startIcon={<ArrowBack />}
           >
             Return to Events
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Alert>
+      </Box>
     );
   }
 
   if (Cart.state.items.length === 0) {
     return (
-      <div className="text-center py-12">
-        <h1 className="text-3xl font-bold text-red-500 mb-4">Your Cart</h1>
-        <p className="text-gray-600 text-lg mb-6">Your cart is empty.</p>
-        <button
+      <Box className="text-center" sx={{ py: 8 }}>
+        <ShoppingBag sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
+        <Typography variant="h4" color="primary" gutterBottom>
+          Your Cart
+        </Typography>
+        <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
+          Your cart is empty.
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
           onClick={handleBrowseEvents}
-          className="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded transition-colors"
+          size="large"
         >
           Browse Events
-        </button>
-      </div>
+        </Button>
+      </Box>
     );
   }
 
   const totalPrice = Cart.getTotalPrice();
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-red-500 mb-6">Your Cart</h1>
+    <Box>
+      <Typography variant="h4" color="primary" gutterBottom>
+        Your Cart
+      </Typography>
       
-      <div className="space-y-4 mb-8">
+      <Box sx={{ mb: 4 }}>
         {Cart.state.items.map((item) => {
           const itemTotal = item.price_value * item.quantity;
           
           return (
-            <div key={item.event_id} className="bg-white rounded-lg p-6 shadow-md">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-                <div className="md:col-span-2">
-                  <h3 className="text-xl font-semibold text-red-500 mb-2">{item.title}</h3>
-                  <p className="text-gray-600"><strong>Price:</strong> {item.price}</p>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <label htmlFor={`quantity-${item.event_id}`} className="text-sm font-medium">
+            <Paper key={item.event_id} className="cart-item" elevation={1} sx={{ p: 3, mb: 2 }}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6" color="primary" gutterBottom>
+                  {item.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  <strong>Price:</strong> {item.price}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                     Quantity:
-                  </label>
-                  <input
-                    id={`quantity-${item.event_id}`}
+                  </Typography>
+                  <TextField
                     type="number"
-                    min="0"
+                    size="small"
                     value={item.quantity}
                     onChange={(e) => handleQuantityChange(item.event_id, parseInt(e.target.value) || 0)}
-                    className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                    inputProps={{ min: 0, style: { textAlign: 'center' } }}
+                    sx={{ width: 80 }}
                   />
-                </div>
+                </Box>
                 
-                <div className="text-right">
-                  <p className="text-lg font-semibold mb-2">
-                    <strong>Item Total:</strong> ${itemTotal.toFixed(2)}
-                  </p>
-                  <button
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="h6">
+                    ${itemTotal.toFixed(2)}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    startIcon={<Delete />}
                     onClick={() => Cart.removeFromCart(item.event_id)}
-                    className="bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded text-sm transition-colors"
                   >
                     Remove
-                  </button>
-                </div>
-              </div>
-            </div>
+                  </Button>
+                </Box>
+              </Box>
+            </Paper>
           );
         })}
-      </div>
+      </Box>
       
-      <div className="bg-gray-100 rounded-lg p-6 mb-6">
-        <div className="flex justify-between items-center text-xl font-bold">
-          <span>Total: ${totalPrice.toFixed(2)}</span>
-        </div>
-      </div>
+      <Paper className="cart-total" elevation={1} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h5" sx={{ textAlign: 'center', fontWeight: 'bold' }}>
+          Total: ${totalPrice.toFixed(2)}
+        </Typography>
+      </Paper>
       
-      <div className="flex gap-4">
-        <button
+      <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <Button
+          variant="outlined"
+          color="primary"
           onClick={handleBrowseEvents}
-          className="bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded transition-colors"
+          size="large"
         >
           Continue Shopping
-        </button>
+        </Button>
         
-        <button
+        <Button
+          variant="contained"
+          color="primary"
           onClick={handleCheckout}
           disabled={isCheckingOut}
-          className="bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white py-3 px-6 rounded transition-colors font-semibold"
+          size="large"
+          startIcon={isCheckingOut ? <CircularProgress size={20} /> : null}
         >
           {isCheckingOut ? 'Processing...' : 'Checkout'}
-        </button>
-      </div>
-    </div>
+        </Button>
+      </Box>
+    </Box>
   );
 }

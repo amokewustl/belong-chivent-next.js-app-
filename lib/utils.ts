@@ -1,4 +1,3 @@
-
 export const formatDate = (dateStr: string): string => {
     if (dateStr === "TBA") {
       return "TBA";

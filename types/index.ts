@@ -2,12 +2,14 @@
 export interface Event {
   id: string;
   title: string;
+  subtitle?: string;
   description: string;
   image: string;
   price: string;
   price_value: number;
   location: string;
   startDate: string;
+  endDate?: string;
   startTime: string;
   endTime: string;
   url: string;
@@ -25,7 +27,10 @@ export interface CartItem {
 }
   
 export interface ApiCacheEntry {
-  data: any;
+  data: {
+    events: Event[];
+    filteredCount: number;
+  };
   expiry: Date;
 }
 
@@ -44,10 +49,15 @@ export interface TicketmasterResponse {
 export interface TicketmasterEvent {
   id: string;
   name: string;
+  description?: string;
   info?: string;
   pleaseNote?: string;
-  description?: string;
   url?: string;
+  images?: Array<{
+    url: string;
+    width?: number;
+    height?: number;
+  }>;
   dates?: {
     start?: {
       localDate?: string;
@@ -55,13 +65,8 @@ export interface TicketmasterEvent {
     };
   };
   priceRanges?: Array<{
-    min?: number;
-    max?: number;
-  }>;
-  images?: Array<{
-    url: string;
-    width?: number;
-    height?: number;
+    min: number;
+    max: number;
   }>;
   _embedded?: {
     venues?: Array<{

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TicketmasterEvent, ApiCacheEntry, Event } from '@/types';
-import { Chronos} from '@jstiava/chronos';
+import { dayjs, Dayjs, Chronos} from '@jstiava/chronos';
 const chronos = new Chronos();
-import dayjs  from 'dayjs';
+
 
 const TICKETMASTER_API_KEY = "pmbdy5uLSZnpbGGenJyLkA7xeRCPS20L";
 

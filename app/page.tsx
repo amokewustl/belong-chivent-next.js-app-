@@ -1,7 +1,7 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Typography, Button, CircularProgress, Alert, Box } from '@mui/material';
 import { Event } from '@/types';
 import { fetchEnoughEvents } from '@/lib/api';
 import { EventCard } from '@/components/EventCard';
@@ -42,54 +42,69 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-96">
-        <div className="text-lg text-gray-600">Loading events...</div>
-      </div>
+      <Box className="loading-container">
+        <Box sx={{ textAlign: 'center' }}>
+          <CircularProgress color="primary" size={40} />
+          <Typography className="loading-text" sx={{ mt: 2 }}>
+            Loading events...
+          </Typography>
+        </Box>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <div className="flex justify-center items-center min-h-96">
-        <div className="text-lg text-red-500">{error}</div>
-      </div>
+      <Box className="error-container">
+        <Alert severity="error" sx={{ maxWidth: 400 }}>
+          {error}
+        </Alert>
+      </Box>
     );
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-red-500 mb-6">Upcoming Events in Chicago</h1>
+    <Box>
+      <Typography variant="h3" component="h1" color="primary" gutterBottom>
+        Upcoming Events in Chicago
+      </Typography>
       
-      <div className="flex gap-4 mb-6">
-        <button
+      <Box className="button-group">
+        <Button
+          variant="contained"
+          color="primary"
           onClick={handlePrevPage}
           disabled={currentPage <= 0}
-          className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white py-2 px-4 rounded transition-colors"
         >
           Previous Page
-        </button>
+        </Button>
         
-        <button
+        <Button
+          variant="contained"
+          color="primary"
           onClick={handleNextPage}
-          className="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded transition-colors"
         >
           Next Page
-        </button>
-      </div>
+        </Button>
+      </Box>
       
-      <p className="text-gray-600 mb-6">Page {currentPage + 1}</p>
+      <Typography variant="body1" color="text.secondary" className="mb-24">
+        Page {currentPage + 1}
+      </Typography>
       
       {events.length === 0 ? (
-        <div className="text-center text-gray-600 mt-8">
-          <p>No events found for this page. Try another page or check back later.</p>
-        </div>
+        <Box className="text-center mt-24">
+          <Typography variant="h6" color="text.secondary">
+            No events found for this page. Try another page or check back later.
+          </Typography>
+        </Box>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Box className="events-grid">
           {events.map((event) => (
             <EventCard key={event.id} event={event} />
           ))}
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }

@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { AppBar, Toolbar, Typography, Button, Badge, Box, IconButton} from '@mui/material';
+import { ShoppingCart, AdminPanelSettings } from '@mui/icons-material';
 import { useCart } from '@/context/CartContext';
 
 export const CartHeader: React.FC = () => {
@@ -23,40 +25,51 @@ export const CartHeader: React.FC = () => {
   };
 
   return (
-    <div className="bg-white shadow-md border-b border-gray-200 p-4">
-      <div className="flex justify-between items-center">
-        <div className="cursor-pointer" onClick={handleGoHome}>
-          <h1 className="text-2xl font-bold text-red-500">Chivent</h1>
-          <p className="text-gray-600 text-sm">Chicago Events</p>
-        </div>
+    <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: 'white', borderBottom: '1px solid #e5e7eb' }}>
+      <Toolbar sx={{ justifyContent: 'space-between' }}>
+        <Box sx={{ cursor: 'pointer' }} onClick={handleGoHome}>
+          <Typography variant="h4" component="h1" color="primary" sx={{ fontWeight: 'bold' }}>
+            Chivent
+          </Typography>
+          <Typography variant="subtitle2" color="text.secondary">
+            Chicago Events
+          </Typography>
+        </Box>
 
-        <div className="flex items-center gap-4">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {/* Admin Link */}
-          <button
+          <Button
+            startIcon={<AdminPanelSettings />}
             onClick={handleGoToAdmin}
-            className="text-gray-600 hover:text-red-500 transition-colors text-sm font-medium"
+            color="inherit"
+            sx={{ textTransform: 'none' }}
           >
             Admin
-          </button>
+          </Button>
           
           {/* Cart Button */}
-          <button
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={
+              <Badge badgeContent={totalCount} color="secondary">
+                <ShoppingCart />
+              </Badge>
+            }
             onClick={handleGoToCart}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors flex items-center gap-2"
+            sx={{ textTransform: 'none' }}
           >
-            <span>🛒</span>
-            <div className="text-left">
-              <div className="text-sm font-medium">
-                Cart ({totalCount})
-              </div>
-              <div className="text-xs">
+            <Box sx={{ textAlign: 'left', ml: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'medium', lineHeight: 1.2 }}>
+                Cart
+              </Typography>
+              <Typography variant="caption" sx={{ lineHeight: 1 }}>
                 ${totalPrice.toFixed(2)}
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-
+              </Typography>
+            </Box>
+          </Button>
+        </Box>
+      </Toolbar>
+    </AppBar>
   );
-}
+};

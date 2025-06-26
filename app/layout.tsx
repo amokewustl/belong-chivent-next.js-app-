@@ -1,10 +1,10 @@
-
 import React from 'react';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
 import { CartHeader } from '@/components/CartHeader';
-import './globals.css';
+import { ClientThemeProvider } from '@/components/theme'; 
+import '@/styles/styles.scss';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,14 +21,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <CartProvider>
-          <div className="min-h-screen bg-gray-50">
+        <ClientThemeProvider>
+          <CartProvider>
             <CartHeader />
-            <main className="max-w-7xl mx-auto p-6">
+            <main className="main-container">
               {children}
             </main>
-          </div>
-        </CartProvider>
+          </CartProvider>
+        </ClientThemeProvider>
       </body>
     </html>
   );

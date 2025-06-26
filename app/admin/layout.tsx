@@ -1,9 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { Box, Typography, Button, AppBar, Toolbar, CircularProgress, Avatar, Menu, MenuItem } from '@mui/material';
+import { Logout, Visibility, Person } from '@mui/icons-material';
+import { AdminAuth } from '@/components/AdminAuthentification';
 
-const ADMIN_PASSWORD = 'admin123';
+interface User {
+  username: string;
+  email: string;
+}
+// what if you have multiple admin pages do you want to do the check everytime 
 
 export default function AdminLayout({
   children,
@@ -11,118 +18,152 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const router = useRouter();
-  const searchParams: any = useSearchParams();
 
   useEffect(() => {
-    // Check if user is already authenticated 
-    const authStatus = sessionStorage.getItem('adminAuthenticated');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-      setLoading(false);
-      return;
-    }
+    checkAuthStatus();
+  }, []);
 
-    // Check URL parameter for password
-    const urlPassword = searchParams.get('password');
-    
-    if (urlPassword === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      // Store authentication in session
-      sessionStorage.setItem('adminAuthenticated', 'true');
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch('/api/me', {
+        credentials: 'include',
+      });
       
-    } else if (urlPassword && urlPassword !== ADMIN_PASSWORD) {
-      // Wrong password provided
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
+        clearAuthCookies();
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
       setIsAuthenticated(false);
-    } else {
-      // No password provided
-      setIsAuthenticated(false);
+      setUser(null);
+      clearAuthCookies();
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
-  }, [searchParams]);
+  };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem('adminAuthenticated');
-    router.push('/');
+  const clearAuthCookies = () => {
+    document.cookie = 'admin-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  };
+
+  const handleAuthenticated = (userData: User) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { 
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setIsAuthenticated(false);
+      setUser(null);
+      handleMenuClose();
+      clearAuthCookies();
+      router.push('/');
+    }
+  };
+
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-lg text-gray-600">Loading...</div>
-      </div>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh',
+        bgcolor: 'background.default'
+      }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <CircularProgress color="primary" size={40} />
+          <Typography sx={{ mt: 2, color: 'text.secondary' }}>
+            Loading...
+          </Typography>
+        </Box>
+      </Box>
     );
   }
 
+  // Show login form if not authenticated
   if (!isAuthenticated) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md text-center">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-red-600 mb-2">Chivent Admin</h1>
-            <h2 className="text-xl font-semibold text-gray-800">Access Denied</h2>
-          </div>
-          
-          <div className="space-y-4 text-gray-600">
-            <p>Invalid or missing password in URL</p>
-            <div className="bg-gray-100 p-4 rounded-lg">
-              <p className="text-sm font-medium mb-2">Required URL format:</p>
-              <code className="text-sm bg-gray-200 px-2 py-1 rounded">
-                /admin?password=yourpassword
-              </code>
-            </div>
-            <p className="text-sm text-gray-500">
-              Please contact an admin for the correct access URL.
-            </p>
-          </div>
-          
-          <div className="mt-6">
-            <button
-              onClick={() => router.push('/')}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors"
-            >
-              Return to Main Site
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <AdminAuth onAuthenticated={handleAuthenticated} />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Admin Navigation */}
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-red-600">Chivent Admin</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => router.push('/')}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                View Site
-              </button>
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm transition-colors"
-              >
+      <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: 'white' }}>
+        <Toolbar sx={{ justifyContent: 'space-between' }}>
+          <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>
+            Chivent Admin
+          </Typography>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              startIcon={<Visibility />}
+              onClick={() => router.push('/')}
+              color="inherit"
+              sx={{ textTransform: 'none' }}
+            >
+              View Site
+            </Button>
+            
+            <Button
+              startIcon={<Avatar sx={{ width: 24, height: 24, bgcolor: 'primary.main' }}>
+                {user?.username?.charAt(0).toUpperCase()}
+              </Avatar>}
+              onClick={handleMenuClick}
+              color="inherit"
+              sx={{ textTransform: 'none' }}
+            >
+              {user?.username}
+            </Button>
+            
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={handleMenuClose}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+              <MenuItem onClick={handleMenuClose} disabled>
+                <Person sx={{ mr: 1 }} />
+                {user?.email}
+              </MenuItem>
+              <MenuItem onClick={handleLogout}>
+                <Logout sx={{ mr: 1 }} />
                 Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+              </MenuItem>
+            </Menu>
+          </Box>
+        </Toolbar>
+      </AppBar>
 
       {/* Admin Content */}
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <Box sx={{ p: 3 }}>
         {children}
-      </main>
-    </div>
+      </Box>
+    </Box>
   );
 }

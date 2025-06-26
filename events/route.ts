@@ -1,9 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { TicketmasterEvent, ApiCacheEntry, Event } from '@/types';
-import { Chronos} from '@jstiava/chronos';
+import { Dayjs, dayjs,Chronos} from '@jstiava/chronos';
 const chronos = new Chronos();
-import dayjs  from 'dayjs';
 const TICKETMASTER_API_KEY = "pmbdy5uLSZnpbGGenJyLkA7xeRCPS20L";
 
 // In-memory cache
@@ -98,7 +97,7 @@ async function fetchTicketmasterEvents(
   };
 }
 
-function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
+function processSingleEvent(ticketmasterEvent: any): Event {
   // Check for price information
   let hasPrice = false;
   let price = "N/A";
@@ -116,7 +115,7 @@ function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
   
   if (ticketmasterEvent.images?.length) {
     hasImage = true;
-    const suitableImages = ticketmasterEvent.images.filter(img => (img.width || 0) >= 400);
+    const suitableImages = ticketmasterEvent.images.filter((img: any) => (img.width || 0) >= 400);
     if (suitableImages.length > 0) {
       imageUrl = suitableImages[0].url;
     } else {
@@ -156,11 +155,11 @@ function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
   
   if (ticketmasterEvent.dates?.start) {
     if (ticketmasterEvent.dates.start.localDate) {
-      startDate = dayjs(ticketmasterEvent.dates.start.localDate).format('YYYY-MM-DD');
+      startDate = dayjs().utc(ticketmasterEvent.dates.start.localDate).format('YYYY-MM-DD');
     }
     
     if (ticketmasterEvent.dates.start.localTime) {
-        const startDateTime = dayjs(`2000-01-01 ${startTime}`); // Using dummy date for time manipulation
+        const startDateTime = dayjs().utc(ticketmasterEvent.dates.start.localTime); 
         const endDateTime = startDateTime.add(3, 'hours');
         endTime = endDateTime.format('HH:mm:ss');
     }

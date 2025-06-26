@@ -1,0 +1,141 @@
+//import '@dart-sass';
+
+$primary-color: #ef4444; 
+$secondary-color: #6b7280; 
+$background-color: #f9fafb; 
+$white: #ffffff;
+$error-color: #dc2626;
+$success-color: #16a34a;
+
+// Basic body styles
+body {
+  margin: 0;
+  padding: 0;
+  background-color: $background-color;
+  font-family: 'Inter', sans-serif;
+}
+
+// Container for main content
+.main-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+// Grid layout for events (3 columns)
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+  
+  // Make it responsive
+  @media (max-width: 968px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Loading and error states
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  
+  .loading-text {
+    font-size: 18px;
+    color: $secondary-color;
+  }
+}
+
+.error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  
+  .error-text {
+    font-size: 18px;
+    color: $error-color;
+  }
+}
+
+// Cart styles
+.cart-container {
+  .cart-item {
+    background-color: $white;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .cart-total {
+    background-color: #e5e7eb;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    
+    .total-text {
+      font-size: 20px;
+      font-weight: bold;
+    }
+  }
+}
+
+// Admin styles
+.admin-header {
+  background-color: $primary-color;
+  color: $white;
+  padding: 24px;
+  border-radius: 8px;
+  margin-bottom: 32px;
+  
+  .admin-title {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  
+  .admin-subtitle {
+    opacity: 0.9;
+  }
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  
+  @media (max-width: 968px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Utility classes
+.text-center {
+  text-align: center;
+}
+
+.mb-24 {
+  margin-bottom: 24px;
+}
+
+.mt-24 {
+  margin-top: 24px;
+}
+
+// Button spacing
+.button-group {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
