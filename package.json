@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "seed-admin": "npx ts-node scripts/seed-admin.ts",
+    "seed-users": "node scripts/seed-users.js",
+    "seed-events": "node scripts/seed-events.js",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
