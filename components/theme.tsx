@@ -7,7 +7,8 @@ import { Inter } from 'next/font/google';
 
 const inter = Inter({ subsets: ['latin'] });
 
-// Material UI theme
+// Material UI theme 
+// look at dark mode
 const theme = createTheme({
   palette: {
     primary: {

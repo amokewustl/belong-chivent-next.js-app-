@@ -2,6 +2,7 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
+import { UserProvider } from '@/context/UserContext'; 
 import { CartHeader } from '@/components/CartHeader';
 import { ClientThemeProvider } from '@/components/theme'; 
 import '@/styles/styles.scss';
@@ -22,12 +23,14 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <ClientThemeProvider>
-          <CartProvider>
-            <CartHeader />
-            <main className="main-container">
-              {children}
-            </main>
-          </CartProvider>
+          <UserProvider>
+            <CartProvider>
+              <CartHeader />
+              <main className="main-container">
+                {children}
+              </main>
+            </CartProvider>
+          </UserProvider>
         </ClientThemeProvider>
       </body>
     </html>

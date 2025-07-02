@@ -158,7 +158,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ onAuthenticated }) => {
           </Button>
         </form>
         
-        <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+        {/* <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
             Demo Credentials:
           </Typography>
@@ -166,7 +166,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ onAuthenticated }) => {
             Username: admin<br />
             Password: admin123
           </Typography>
-        </Box>
+        </Box> */}
       </Paper>
     </Box>
   );

@@ -30,13 +30,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 401 });
     }
 
-    // Return user info (without sensitive data)
+    // Return user info 
     return NextResponse.json({
       user: {
         id: user._id.toString(),
         username: user.username,
         email: user.email,
-        role: user.role,
+        role: user.role, 
+        firstName: user.firstName,
+        lastName: user.lastName,
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
       }

@@ -3,22 +3,13 @@ import bcrypt from 'bcrypt';
 import connectDB from '@/lib/mongodb';
 import User from '@/models/user';
 
+
+const ADMIN_SECRET_CODE = "lakersin5";
+
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const { 
-      username, 
-      email, 
-      password, 
-      firstName, 
-      lastName, 
-      phone, 
-      dateOfBirth,
-      role = 'user',
-      address,
-      preferences,
-      profile
-    } = await request.json();
+    const { username, email, password, firstName, lastName, phone, dateOfBirth, adminCode, address, preferences, profile} = await request.json();
 
     // Validation
     if (!username || !email || !password || !firstName || !lastName) {
@@ -50,12 +41,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validRoles = ['user', 'admin', 'moderator'];
-    if (!validRoles.includes(role)) {
-      return NextResponse.json(
-        { error: 'Invalid role specified' }, 
-        { status: 400 }
-      );
+    // Determine role based on admin code
+    let role = 'user';
+    if (adminCode && adminCode === ADMIN_SECRET_CODE) {
+      role = 'admin';
     }
 
     // Check if user already exists
@@ -85,10 +74,10 @@ export async function POST(request: NextRequest) {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       role,
-      is_admin: role === 'admin' 
+      isAdmin: role === 'admin' 
     };
 
-    //  optional fields 
+    // Add optional fields 
     if (phone) userData.phone = phone.trim();
     if (dateOfBirth) userData.dateOfBirth = new Date(dateOfBirth);
     if (address) userData.address = address;
@@ -98,10 +87,18 @@ export async function POST(request: NextRequest) {
     const newUser = new User(userData);
     await newUser.save();
 
-    // Return user data
+    // Return user data 
     return NextResponse.json({
       message: 'User registered successfully',
-      user: newUser.getSafeData()
+      user: {
+        id: newUser._id.toString(),
+        username: newUser.username,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        role: newUser.role,
+        createdAt: newUser.createdAt
+      }
     }, { status: 201 });
 
   } catch (error: any) {

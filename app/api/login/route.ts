@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
         role: user.role
       }
     });
+    
 
     response.headers.set('Set-Cookie', cookie);
     

@@ -3,25 +3,38 @@
 import React from 'react';
 import { Card, CardContent, CardMedia, CardActions, Typography, Button, Chip, Box, Stack, IconButton, Tooltip} from '@mui/material';
 import {
-  LocationOn, Event as EventIcon, AccessTime, ShoppingCart, Visibility
+  LocationOn, Event as EventIcon, AccessTime, ShoppingCart, Visibility, Login
 } from '@mui/icons-material';
 import { Event } from '@/types';
 import { useCart } from '@/context/CartContext';
+import { useUser } from '@/context/UserContext';
 import { dayjs, Dayjs, Chronos } from '@jstiava/chronos';
 new Chronos;
 
 interface EventCardProps {
   event: Event;
+  onAuthRequired?: () => void;
 }
 
-export const EventCard: React.FC<EventCardProps> = ({ event }) => {
+export const EventCard: React.FC<EventCardProps> = ({ event, onAuthRequired }) => {
   const Cart = useCart();
+  const { user, isAuthenticated } = useUser();
 
   const handleViewDetails = () => {
     alert(`Event: ${event.title}\n\nDescription: ${event.description}\n\nLocation: ${event.location}\n\nDate: ${event.startDate}\nTime: ${event.startTime}`);
   };
 
   const handleAddToCart = () => {
+    if (!isAuthenticated) {
+      // Show auth dialog if user is not logged in
+      if (onAuthRequired) {
+        onAuthRequired();
+      } else {
+        alert('Please log in to add items to your cart');
+      }
+      return;
+    }
+    
     Cart.addToCart(event);
     alert(`${event.title} added to cart!`);
   };
@@ -149,7 +162,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
         </Button>
         <Button
           variant="contained"
-          startIcon={<ShoppingCart />}
+          startIcon={isAuthenticated ? <ShoppingCart /> : <Login />}
           onClick={handleAddToCart}
           color="error"
           sx={{ 
@@ -158,7 +171,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
             fontWeight: 'medium'
           }}
         >
-          Add to Cart
+          {isAuthenticated ? 'Add to Cart' : 'Login to Add'}
         </Button>
       </CardActions>
     </Card>

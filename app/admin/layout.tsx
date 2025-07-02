@@ -2,15 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Box, Typography, Button, AppBar, Toolbar, CircularProgress, Avatar, Menu, MenuItem } from '@mui/material';
+import { Box, Typography, Button, AppBar, Toolbar, CircularProgress, Avatar, Menu, MenuItem, Alert } from '@mui/material';
 import { Logout, Visibility, Person } from '@mui/icons-material';
 import { AdminAuth } from '@/components/AdminAuthentification';
 
 interface User {
   username: string;
   email: string;
+  role: 'user' | 'admin';
 }
-// what if you have multiple admin pages do you want to do the check everytime 
 
 export default function AdminLayout({
   children,
@@ -18,8 +18,10 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const router = useRouter();
 
@@ -37,14 +39,29 @@ export default function AdminLayout({
         const data = await response.json();
         setUser(data.user);
         setIsAuthenticated(true);
+        
+        // Check if user has admin role
+        if (data.user.role === 'admin') {
+          setIsAdmin(true);
+        } else {
+          // User is authenticated but not admin 
+          setIsAdmin(false);
+          setAccessDenied(true);
+          // Redirect to home page after showing alert
+          setTimeout(() => {
+            router.push('/');
+          }, 3000);
+        }
       } else {
         setIsAuthenticated(false);
+        setIsAdmin(false);
         setUser(null);
         clearAuthCookies();
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setIsAuthenticated(false);
+      setIsAdmin(false);
       setUser(null);
       clearAuthCookies();
     } finally {
@@ -59,6 +76,17 @@ export default function AdminLayout({
   const handleAuthenticated = (userData: User) => {
     setUser(userData);
     setIsAuthenticated(true);
+    
+    // Check admin role after authentication
+    if (userData.role === 'admin') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
+      setAccessDenied(true);
+      setTimeout(() => {
+        router.push('/');
+      }, 3000);
+    }
   };
 
   const handleLogout = async () => {
@@ -71,6 +99,7 @@ export default function AdminLayout({
       console.error('Logout failed:', error);
     } finally {
       setIsAuthenticated(false);
+      setIsAdmin(false);
       setUser(null);
       handleMenuClose();
       clearAuthCookies();
@@ -105,11 +134,53 @@ export default function AdminLayout({
     );
   }
 
+  if (isAuthenticated && !isAdmin) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh',
+        bgcolor: 'background.default',
+        p: 3
+      }}>
+        <Box sx={{ textAlign: 'center', maxWidth: 500 }}>
+          <Alert severity="error" sx={{ mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Access Denied
+            </Typography>
+            <Typography variant="body1">
+              You need admin privileges to access this page. 
+            </Typography>
+          </Alert>
+          
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button 
+              variant="contained" 
+              onClick={() => router.push('/')}
+              color="primary"
+            >
+              Go to Home Page
+            </Button>
+            <Button 
+              variant="outlined" 
+              onClick={handleLogout}
+              color="secondary"
+            >
+              Logout
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
   // Show login form if not authenticated
   if (!isAuthenticated) {
     return <AdminAuth onAuthenticated={handleAuthenticated} />;
   }
 
+  // Only render admin content if authenticated and is admin
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Admin Navigation */}
