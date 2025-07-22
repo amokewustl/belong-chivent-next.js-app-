@@ -13,14 +13,14 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
     
-    // Get token from cookie
     const token = request.cookies.get('admin-token')?.value;
 
     if (!token) {
+      console.log(request.cookies);
       return NextResponse.json({ error: 'No token provided' }, { status: 401 });
     }
 
-    // Verify token
+
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     
     // Find user in MongoDB

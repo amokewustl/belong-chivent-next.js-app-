@@ -2,8 +2,8 @@
 import { Event } from '@/types';
 
 export const fetchEnoughEvents = async (
-  targetCount: number = 20, 
-  maxPages: number = 5, 
+  targetCount: number = 20,
+  maxPages: number = 5,
   currentPage: number = 0
 ): Promise<{ events: Event[]; filteredCount: number }> => {
   try {
@@ -14,12 +14,12 @@ export const fetchEnoughEvents = async (
     });
 
     console.log('Fetching events with URL:', `/api/events?${params}`);
-    
+
     const response = await fetch(`/api/events?${params}`);
-    
+
     console.log('Response status:', response.status);
     console.log('Response ok:', response.ok);
-    
+
     if (!response.ok) {
       // Try to get the error details from the response
       let errorMessage = `HTTP error! status: ${response.status}`;
@@ -30,17 +30,17 @@ export const fetchEnoughEvents = async (
       } catch (e) {
         console.error('Could not read error response body');
       }
-      
+
       throw new Error(errorMessage);
     }
-    
+
     const data = await response.json();
     console.log('Successfully fetched events:', data);
     return data;
   } catch (error) {
     console.error("Error fetching events:", error);
-    
-    }
-    
-    return { events: [], filteredCount: 0 };
-  };
+
+  }
+
+  return { events: [], filteredCount: 0 };
+};

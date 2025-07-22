@@ -134,7 +134,7 @@ function convertTicketmasterEvent(tmEvent: TicketmasterEvent, organizerId: strin
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    
+    console.log("hi");
     // Verify admin authentication
     const token = request.cookies.get('admin-token')?.value;
     if (!token) {

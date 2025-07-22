@@ -1,36 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Event } from '@/types';
+import jwt from 'jsonwebtoken';
+import connectDB from '@/lib/mongodb';
+import Event from '@/models/event';
+import User from '@/models/user';
 
-// make this a database connection
-declare global {
-  var eventsStorage: Event[];
-}
-
-// Initialize if it doesn't exist
-if (!global.eventsStorage) {
-  global.eventsStorage = [];
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'random-string';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const eventId = params.id;
-    const event = global.eventsStorage.find(e => e.id === eventId);
+    await connectDB();
+    
+    const event = await Event.findById(params.id);
     
     if (!event) {
-      return NextResponse.json(
-        { error: 'Event not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
 
     return NextResponse.json(event);
   } catch (error) {
     console.error('Error fetching event:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch event' },
+      { error: 'Failed to fetch event' }, 
       { status: 500 }
     );
   }
@@ -41,55 +34,45 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const eventId = params.id;
+    await connectDB();
+    
+    // admin authentication
+    const token = request.cookies.get('admin-token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const user = await User.findById(decoded.userId);
+    
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
     const eventData = await request.json();
     
-    // Find the event index
-    const eventIndex = global.eventsStorage.findIndex(e => e.id === eventId);
+    // find the event
+    const event = await Event.findById(params.id);
     
-    if (eventIndex === -1) {
-      return NextResponse.json(
-        { error: 'Event not found' },
-        { status: 404 }
-      );
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
 
-    // required fields
-    if (!eventData.title || !eventData.startDate || !eventData.startTime) {
-      return NextResponse.json(
-        { error: 'Missing required fields: title, startDate, and startTime are required' },
-        { status: 400 }
-      );
-    }
 
-    // Update the event
-    const updatedEvent: Event = {
-      ...global.eventsStorage[eventIndex],
-      title: eventData.title,
-      subtitle: eventData.subtitle || '',
-      description: eventData.description || 'No description available for this event.',
-      image: eventData.image || global.eventsStorage[eventIndex].image,
-      price: eventData.price || 'N/A',
-      price_value: eventData.price_value || 0,
-      location: eventData.location || 'Location TBA',
-      startDate: eventData.startDate,
-      endDate: eventData.endDate || eventData.startDate,
-      startTime: eventData.startTime,
-      endTime: eventData.endTime || eventData.startTime,
-      url: eventData.url || global.eventsStorage[eventIndex].url,
-      has_price: eventData.has_price || false,
-      has_description: eventData.has_description || false,
-      has_image: eventData.has_image || false
-    };
-
-    // Replace in storage
-    global.eventsStorage[eventIndex] = updatedEvent;
+    const updatedEvent = await Event.findByIdAndUpdate(
+      params.id,
+      {
+        ...eventData,
+        updatedAt: new Date()
+      },
+      { new: true, runValidators: true }
+    );
 
     return NextResponse.json(updatedEvent);
   } catch (error) {
     console.error('Error updating event:', error);
     return NextResponse.json(
-      { error: 'Failed to update event' },
+      { error: 'Failed to update event', details: error instanceof Error ? error.message : 'Unknown error' }, 
       { status: 500 }
     );
   }
@@ -100,27 +83,35 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const eventId = params.id;
-    const eventIndex = global.eventsStorage.findIndex(e => e.id === eventId);
+    await connectDB();
     
-    if (eventIndex === -1) {
-      return NextResponse.json(
-        { error: 'Event not found' },
-        { status: 404 }
-      );
+    // Verify admin authentication
+    const token = request.cookies.get('admin-token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    // Remove from storage
-    const deletedEvent = global.eventsStorage.splice(eventIndex, 1)[0];
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const user = await User.findById(decoded.userId);
+    
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
 
-    return NextResponse.json({ 
-      message: 'Event deleted successfully',
-      deletedEvent 
-    });
+    // Find the event
+    const event = await Event.findById(params.id);
+    
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    await Event.findByIdAndDelete(params.id);
+
+    return NextResponse.json({ message: 'Event deleted successfully' });
   } catch (error) {
     console.error('Error deleting event:', error);
     return NextResponse.json(
-      { error: 'Failed to delete event' },
+      { error: 'Failed to delete event', details: error instanceof Error ? error.message : 'Unknown error' }, 
       { status: 500 }
     );
   }

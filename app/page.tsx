@@ -7,6 +7,7 @@ import { Event } from '@/types';
 import { fetchEnoughEvents } from '@/lib/api';
 import { EventCard } from '@/components/EventCard';
 import { AuthDialog } from '@/components/AuthDialog';
+import { useUser } from '@/context/UserContext';
 
 interface User {
   id: string;
@@ -22,9 +23,9 @@ export default function HomePage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
   
-  
-  const [user, setUser] = useState<User | null>(null);
+  const User = useUser();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -34,16 +35,17 @@ export default function HomePage() {
     setError(null);
     try {
       const { events: fetchedEvents } = await fetchEnoughEvents(20, 5, page);
+      console.log(fetchedEvents);
       setEvents(fetchedEvents);
     } catch (err) {
       setError('Failed to load events. Please try again.');
       console.error('Error loading events:', err);
+      setEvents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Check if user is already authenticated
   const checkAuthStatus = async () => {
     try {
       const response = await fetch('/api/me', {
@@ -52,7 +54,7 @@ export default function HomePage() {
       
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user);
+        User.checkAuth();
       }
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -80,14 +82,42 @@ export default function HomePage() {
     setAuthDialogOpen(true);
   };
 
+  const handleLogin = async (credentials: { username: string; password: string }) => {
+    setLoginError(null);
+    try {
+      const result = await User.login(credentials);
+      
+      if (result.success) {
+        setAuthDialogOpen(false);
+        await loadEvents(currentPage);
+      } else {
+        setLoginError(result.error || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setLoginError('An unexpected error occurred');
+    }
+  };
+
+  const handleRegister = async (userData: any) => {
+    setLoginError(null);
+    try {
+      const result = await User.register(userData);
+      
+      if (!result.success) {
+        setLoginError(result.error || 'Registration failed');
+        throw new Error(result.error || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error; 
+    }
+  };
+
   const handleAuthDialogClose = () => {
     setAuthDialogOpen(false);
   };
 
-  const handleAuthenticated = (userData: User) => {
-    setUser(userData);
-    setAuthDialogOpen(false);
-  };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -97,19 +127,6 @@ export default function HomePage() {
     setAnchorEl(null);
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      setUser(null);
-      handleProfileMenuClose();
-      document.cookie = 'admin-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
 
   const handleAdminPanel = () => {
     handleProfileMenuClose();
@@ -117,17 +134,17 @@ export default function HomePage() {
   };
 
   const getUserDisplayName = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName} ${user.lastName}`;
+    if (User.user?.firstName && User.user?.lastName) {
+      return `${User.user.firstName} ${User.user.lastName}`;
     }
-    return user?.username || 'User';
+    return User.user?.username || 'User';
   };
 
   const getUserInitial = () => {
-    if (user?.firstName) {
-      return user.firstName.charAt(0).toUpperCase();
+    if (User.user?.firstName) {
+      return User.user.firstName.charAt(0).toUpperCase();
     }
-    return user?.username?.charAt(0).toUpperCase() || 'U';
+    return User.user?.username?.charAt(0).toUpperCase() || 'U';
   };
 
   if (authLoading) {
@@ -152,7 +169,7 @@ export default function HomePage() {
             Chivent
           </Typography>
           
-          {user ? (
+          {User.user ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="body2" sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}>
                 Welcome, {getUserDisplayName()}
@@ -192,7 +209,7 @@ export default function HomePage() {
                       {getUserDisplayName()}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {user.email}
+                      {User.user.email}
                     </Typography>
                   </Box>
                 </MenuItem>
@@ -201,14 +218,14 @@ export default function HomePage() {
                   <Person sx={{ mr: 1 }} />
                   Profile
                 </MenuItem>
-                {user.role === 'admin' && (
+                {User.user.role === 'admin' && (
                   <MenuItem onClick={handleAdminPanel}>
                     <AdminPanelSettings sx={{ mr: 1 }} />
                     Admin Panel
                   </MenuItem>
                 )}
                 <Divider />
-                <MenuItem onClick={handleLogout}>
+                <MenuItem onClick={User.logout}>
                   <Logout sx={{ mr: 1 }} />
                   Logout
                 </MenuItem>
@@ -270,7 +287,7 @@ export default function HomePage() {
               {error}
             </Alert>
           </Box>
-        ) : events.length === 0 ? (
+        ) : (!events || events.length === 0) ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography variant="h6" color="text.secondary">
               No events found for this page. Try another page or check back later.
@@ -289,7 +306,9 @@ export default function HomePage() {
       <AuthDialog
         open={authDialogOpen}
         onClose={handleAuthDialogClose}
-        onAuthenticated={handleAuthenticated}
+        onSubmit={handleLogin}  // add register or login logic 
+        onRegister={handleRegister}
+        error = {loginError}
       />
     </Box>
   );

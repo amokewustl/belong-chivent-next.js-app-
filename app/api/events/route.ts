@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TicketmasterEvent, ApiCacheEntry, Event } from '@/types';
+import { TicketmasterEvent, ApiCacheEntry } from '@/types';
 import { dayjs, Dayjs, Chronos} from '@jstiava/chronos';
+import { generateUniqueId } from '@/utils/idUtils';
+import connectDB from '@/lib/mongodb';
+import Event, {IEvent} from '@/models/event';
+import { ObjectId } from 'mongodb';
+import { convertToMongoEvent } from '@/lib/misc';
 const chronos = new Chronos();
-
+import Mongo from '@/lib/mongodb';
 
 const TICKETMASTER_API_KEY = "pmbdy5uLSZnpbGGenJyLkA7xeRCPS20L";
 
@@ -32,16 +37,52 @@ export async function GET(request: NextRequest) {
     console.log('Cache miss, fetching from Ticketmaster...');
     
     // Fetch from Ticketmaster API
-    const events = await fetchTicketmasterEvents(targetCount, maxPages, currentPage);
-    
-    // Cache the result
-    eventsCache[cacheKey] = {
-      data: events,
-      expiry: dayjs().add(1, 'hour').toDate() 
-    };
+    try{
+      const events = await fetchTicketmasterEvents(targetCount, maxPages, currentPage);
+      if (!events){
+        console.error('Error no events');
+        return NextResponse.json(
+          { error: 'Failed to fetch events' },
+          { status: 500 }
+        );
+      }
+      
+      //const newEvnts = []
+      // convertToMongoEvent function
+      // await connectDB()
+      // for( const event of events.events){
+      //   const rawEvent = convertToMongoEvent(event)
+      //   newEvnts.push(rawEvent)
+      //   //const newEvent = new Event(rawEvent);
+      //   // console.log(newEvent);
+      //   await rawEvent.save();
+      // }
 
-    console.log('Successfully fetched and cached events:', events.events.length);
-    return NextResponse.json(events);
+      const mongo = await Mongo.getInstance();
+      await mongo.clientPromise.db('test').collection('events-test').deleteMany({});
+            await mongo.clientPromise.db('test').collection('events-test').insertMany(
+              events.events.map(event => convertToMongoEvent(event))
+            )
+            //const newEvnts = await mongo.clientPromise.db('test').collection('events-test').find({}).toArray()
+      return NextResponse.json({events: newEvnts});
+      console.log('Successfully fetched and cached events:', events.events.length);
+    }catch(errror){
+      console.log(errror)
+      return NextResponse.json(
+        { error: 'fetch ticketmaster failed', errror },
+        { status: 500 }
+      );
+    }
+    
+    
+    
+    //Cache the result
+    // eventsCache[cacheKey] = {
+    //   data: events,
+    //   expiry: dayjs().add(1, 'hour').toDate() 
+    // };
+
+    
   } catch (error) {
     console.error('Error in events API route:', error);
     return NextResponse.json(
@@ -50,13 +91,154 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+const testEvent = {
+  name: 'Parade Pass',
+  type: 'event',
+  id: 'Za5ju3rKuqZDeaE9_IQgPvEbeBnQKFVOSl',
+  test: false,
+  locale: 'en-us',
+  images: [
+    {
+      ratio: '16_9',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_RETINA_LANDSCAPE_16_9.jpg',
+      width: 1136,
+      height: 639,
+      fallback: true
+    },
+    {
+      ratio: '16_9',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_RETINA_PORTRAIT_16_9.jpg',
+      width: 640,
+      height: 360,
+      fallback: true
+    },
+    {
+      ratio: '16_9',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_RECOMENDATION_16_9.jpg',
+      width: 100,
+      height: 56,
+      fallback: true
+    },
+    {
+      ratio: '16_9',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_TABLET_LANDSCAPE_LARGE_16_9.jpg',
+      width: 2048,
+      height: 1152,
+      fallback: true
+    },
+    {
+      ratio: '3_2',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_ARTIST_PAGE_3_2.jpg',
+      width: 305,
+      height: 203,
+      fallback: true
+    },
+    {
+      ratio: '4_3',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_CUSTOM.jpg',
+      width: 305,
+      height: 225,
+      fallback: true
+    },
+    {
+      ratio: '3_2',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_TABLET_LANDSCAPE_3_2.jpg',
+      width: 1024,
+      height: 683,
+      fallback: true
+    },
+    {
+      ratio: '16_9',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_TABLET_LANDSCAPE_16_9.jpg',
+      width: 1024,
+      height: 576,
+      fallback: true
+    },
+    {
+      ratio: '3_2',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_RETINA_PORTRAIT_3_2.jpg',
+      width: 640,
+      height: 427,
+      fallback: true
+    },
+    {
+      ratio: '16_9',
+      url: 'https://s1.ticketm.net/dam/c/8cf/a6653880-7899-4f67-8067-1f95f4d158cf_124761_EVENT_DETAIL_PAGE_16_9.jpg',
+      width: 205,
+      height: 115,
+      fallback: true
+    }
+  ],
+  dates: {
+    start: {
+      localDate: '2025-07-13',
+      localTime: '13:10:00',
+      dateTime: '2025-07-13T18:10:00Z',
+      dateTBD: false,
+      dateTBA: false,
+      timeTBA: false,
+      noSpecificTime: false
+    },
+    end: {
+      localDate: '2025-07-13',
+      localTime: '17:10:00',
+      dateTime: '2025-07-13T22:10:00Z',
+      approximate: false,
+      noSpecificTime: false
+    },
+    timezone: 'America/Chicago',
+    status: { code: 'offsale' },
+    spanMultipleDays: false
+  },
+  ticketing: { safeTix: { enabled: false }, id: 'ticketing' },
+  _links: {
+    self: {
+      href: '/discovery/v2/events/Za5ju3rKuqZDeaE9_IQgPvEbeBnQKFVOSl?locale=en-us'
+    },
+    venues: [ [Object] ] //dont bring into mongo
+  },
+  _embedded: { venues: [ [Object] ] }  //dont bring into mongo
+}
+type TestType = typeof testEvent;
 
-async function fetchTicketmasterEvents(
+// function convertToMongoEvent(target : TestType): Omit<IEvent, keyof Document>{
+//   return {
+//     title: target.name,
+//     description:  target.description || "No description provided.",
+//     organizer: new ObjectId(target.id), 
+//     venue: {
+//       name: "Unknown Venue",
+//       address: {
+//         street: "Unknown",
+//         city: "Chicago",
+//         state: "IL",
+//         zipCode: "Unkown",
+//         country: "USA"
+//       },
+//       capacity: undefined
+//     },
+//     dateTime: {
+//       start: new Date(target.dates.start.localDate),
+//       end: new Date(target.dates.end.localDate)
+//     },
+//     ticketOptions: [] ,
+//     category: "other",
+//     status: "published",
+//     images: target.images?.map(img => ({
+//       url: img.url,
+//       alt: `${target.name} image`
+//       })),
+//     tags: ["AI", "neww", "Startups", "Networking"],
+//     createdAt: new Date(),
+//     updatedAt: new Date()
+//   };
+//  }
+export async function fetchTicketmasterEvents(
   targetCount: number, 
   maxPages: number, 
   currentPage: number
-): Promise<{ events: Event[]; filteredCount: number }> {
-  const allEvents: Event[] = [];
+): Promise<{ events: TestType[]; filteredCount: number }> {
+  const allEvents: TestType[] = [];
   let filteredCount = 0;
   
   console.log(`Fetching Ticketmaster events: targetCount=${targetCount}, maxPages=${maxPages}, startPage=${currentPage}`);
@@ -75,6 +257,7 @@ async function fetchTicketmasterEvents(
     });
 
     try {
+
       const response = await fetch(`${url}?${params}`);
       
       if (!response.ok) {
@@ -135,6 +318,9 @@ function filterEvents(processedEvents: any[]): any[] {
 }
 
 function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
+  // Ensure unique ID - use original Ticketmaster ID if available, otherwise generate one
+  const eventId = ticketmasterEvent.id || generateUniqueId('tm');
+  
   // Check for price information
   let hasPrice = false;
   let price = "N/A";
@@ -204,7 +390,8 @@ function processSingleEvent(ticketmasterEvent: TicketmasterEvent): Event {
   }
   
   return {
-    id: ticketmasterEvent.id,
+    id: eventId, 
+    // _id: eventId,
     title: ticketmasterEvent.name,
     description,
     image: imageUrl,

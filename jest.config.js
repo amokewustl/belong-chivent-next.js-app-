@@ -9,6 +9,7 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   testEnvironment: "jsdom",
+  testMatch: ["**/*.test.ts", "**/*.spec.ts"],
   preset: 'ts-jest',
   transform: {
     '^.+\\.[t|j]sx?$': 'babel-jest',  // Ensure Babel handles JavaScript and TypeScript files

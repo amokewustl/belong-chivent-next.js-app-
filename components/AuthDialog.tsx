@@ -1,4 +1,3 @@
-// components/AuthDialog.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -8,7 +7,9 @@ import { Login as LoginIcon, PersonAdd, Visibility, VisibilityOff } from '@mui/i
 interface AuthDialogProps {
   open: boolean;
   onClose: () => void;
-  onAuthenticated: (user: any) => void;
+  onSubmit: (credentials: { username: string; password: string }) => Promise<void>;
+  onRegister?: (userData: any) => Promise<void>;
+  error?: string | null; 
 }
 
 interface TabPanelProps {
@@ -30,7 +31,7 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-export const AuthDialog: React.FC<AuthDialogProps> = ({ open, onClose, onAuthenticated }) => {
+export const AuthDialog: React.FC<AuthDialogProps> = ({ open, onClose, onSubmit, onRegister, error: propError }) => {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -62,129 +63,51 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, onClose, onAuthent
     setSuccess('');
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
-
-    if (!loginData.username.trim() || !loginData.password.trim()) {
-      setError('Please enter both username and password');
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
 
     try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: loginData.username.trim(),
-          password: loginData.password
-        }),
-        credentials: 'include',
+      await onSubmit({
+        username: loginData.username,
+        password: loginData.password
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || 'Login failed');
-        return;
-      }
-
-      const data = await response.json();
-      setLoginData({ username: '', password: '' });
-      setError('');
-      onAuthenticated(data.user);
-      onClose();
-
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('Network error. Please check your connection and try again.');
+    } catch (error) {
+      setError('Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
-    setSuccess('');
+    setLoading(true);
 
-    if (!registerData.username.trim() || !registerData.email.trim() || 
-        !registerData.password.trim() || !registerData.firstName.trim() || 
-        !registerData.lastName.trim()) {
-      setError('Please fill in all required fields');
-      setLoading(false);
-      return;
-    }
-
+    // Validate passwords match
     if (registerData.password !== registerData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
       return;
     }
 
-    if (registerData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      setLoading(false);
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(registerData.email)) {
-      setError('Please enter a valid email address');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const response = await fetch('/api/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: registerData.username.trim(),
-          email: registerData.email.trim(),
+      if (onRegister) {
+        await onRegister({
+          username: registerData.username,
+          email: registerData.email,
           password: registerData.password,
-          adminCode: registerData.adminCode,
-          firstName: registerData.firstName.trim(),
-          lastName: registerData.lastName.trim(),
-          phone: registerData.phone.trim() || undefined,
-        }),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || 'Registration failed');
-        return;
+          firstName: registerData.firstName,
+          lastName: registerData.lastName,
+          phone: registerData.phone,
+          adminCode: registerData.adminCode
+        });
+        setSuccess('Registration successful! Please login.');
+        setTab(0); // Switch to login tab
       }
-
-      const data = await response.json();
-      setSuccess('Registration successful! You can now log in.');
-      setRegisterData({
-        username: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        firstName: '',
-        lastName: '',
-        phone: '',
-        adminCode: ''
-      });
-      
-      // Switch to login tab after successful registration
-      setTimeout(() => {
-        setTab(0);
-        setSuccess('');
-      }, 2000);
-
-    } catch (err) {
-      console.error('Registration error:', err);
-      setError('Network error. Please check your connection and try again.');
+    } catch (error) {
+      setError('Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -207,6 +130,9 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, onClose, onAuthent
     onClose();
   };
 
+  // Use prop error if available, otherwise use local error
+  const displayError = propError || error;
+
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle 
@@ -228,9 +154,9 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, onClose, onAuthent
           </Tabs>
         </Box>
 
-        {error && (
+        {displayError && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
+            {displayError}
           </Alert>
         )}
 
@@ -242,7 +168,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, onClose, onAuthent
 
         {/* Login Tab */}
         <TabPanel value={tab} index={0}>
-          <form onSubmit={handleLogin}>
+          <form onSubmit={handleLoginSubmit}>
             <TextField
               fullWidth
               label="Username"
@@ -302,7 +228,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ open, onClose, onAuthent
 
         {/* Register Tab */}
         <TabPanel value={tab} index={1}>
-          <form onSubmit={handleRegister}>
+          <form onSubmit={handleRegisterSubmit}>
             <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
               <TextField
                 fullWidth

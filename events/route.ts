@@ -179,6 +179,7 @@ function processSingleEvent(ticketmasterEvent: any): Event {
     url: ticketmasterEvent.url || "",
     has_price: hasPrice,
     has_description: hasDescription,
-    has_image: hasImage
+    has_image: hasImage,
+    isCustom: false
   };
 }

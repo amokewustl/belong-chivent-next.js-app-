@@ -44,8 +44,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const isAuthenticated = !!user;
-  const isAdmin = user?.role === 'admin';
+  //const isAuthenticated = !!user;
+ // const isAdmin = user?.role === 'admin';
+ 
 
   const checkAuth = async () => {
     try {
@@ -69,7 +70,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (credentials: { username: string; password: string }) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,9 +84,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.ok) {
         setUser(data.user);
         //dont know how to refresh the page automatically
-        // setTimeout(() => {
-        //     router.push('/');
-        //   }, 3000);
+        //router.refresh();
+         
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Login failed' };
@@ -98,7 +98,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const register = async (userData: RegisterData) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('/api/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,22 +129,20 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-    //   setTimeout(() => {
-    //     router.push('/admin');
-    //   }, 3000);
+      //router.refresh();
     }
   };
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+//   useEffect(() => {
+//     checkAuth();
+//   }, []);
 
   return (
     <UserContext.Provider
       value={{
         user,
-        isAuthenticated,
-        isAdmin,
+        isAuthenticated: user? true: false,
+        isAdmin: user && user?.role === 'admin' ? true: false,
         loading,
         login,
         register,

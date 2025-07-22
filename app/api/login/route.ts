@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
     // Return success response with cookie
     const response = NextResponse.json({
       message: 'Login successful',
+      token: token,
       user: {
         id: user._id.toString(),
         username: user.username,

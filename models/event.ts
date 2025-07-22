@@ -4,17 +4,19 @@ interface ITicketOption {
   name: string;
   description?: string;
   price: number;
-  totalQuantity: number;
-  soldQuantity: number;
-  status: 'available' | 'sold_out' | 'disabled';
-  availableQuantity: number;
+  quantity?: number;
+  benefits?: string[];
+  totalQuantity?: number;
+  soldQuantity?: number;
+  status?: 'available' | 'sold_out' | 'disabled';
+  availableQuantity?: number;
 }
 
-interface IEvent extends mongoose.Document {
+export interface IEvent extends mongoose.Document {
   title: string;
   description: string;
   organizer: mongoose.Types.ObjectId;
-  venue: {
+  venue?: {
     name: string;
     address: {
       street?: string;
@@ -30,13 +32,13 @@ interface IEvent extends mongoose.Document {
     end: Date;
   };
   ticketOptions: ITicketOption[];
-  category: 'music' | 'sports' | 'business' | 'arts' | 'food' | 'technology' | 'education' | 'other';
+  category: string;
   status: 'draft' | 'published' | 'cancelled' | 'completed';
   images: Array<{
     url?: string;
     alt?: string;
   }>;
-  tags: string[];
+  familyfreindly: boolean;
   createdAt: Date;
   updatedAt: Date;
   totalRevenuePotential: number;
@@ -61,9 +63,9 @@ const TicketOptionSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
-  totalQuantity: {
+  quantity: {
     type: Number,
-    required: true,
+    default: 0,
     min: 0
   },
   soldQuantity: {
@@ -79,7 +81,7 @@ const TicketOptionSchema = new mongoose.Schema({
 });
 
 TicketOptionSchema.virtual('availableQuantity').get(function(this: ITicketOption) {
-  return this.totalQuantity - this.soldQuantity;
+  return (this.quantity || 0) - (this.soldQuantity || 0);
 });
 
 const EventSchema = new mongoose.Schema({
@@ -150,9 +152,12 @@ EventSchema.pre('save', function(this: IEvent, next: mongoose.CallbackWithoutRes
   }
   
   this.ticketOptions.forEach((ticket: ITicketOption) => {
-    if (ticket.soldQuantity >= ticket.totalQuantity) {
+    const totalQuantity = ticket.quantity || 0;
+    const soldQuantity = ticket.soldQuantity || 0;
+    
+    if (soldQuantity >= totalQuantity) {
       ticket.status = 'sold_out';
-    } else if (ticket.status === 'sold_out' && ticket.soldQuantity < ticket.totalQuantity) {
+    } else if (ticket.status === 'sold_out' && soldQuantity < totalQuantity) {
       ticket.status = 'available';
     }
   });
@@ -167,27 +172,27 @@ EventSchema.pre('findOneAndUpdate', function(next: mongoose.CallbackWithoutResul
 
 EventSchema.virtual('totalRevenuePotential').get(function(this: IEvent) {
   return this.ticketOptions.reduce((total: number, ticket: ITicketOption) => {
-    return total + (ticket.price * ticket.totalQuantity);
+    return total + (ticket.price * (ticket.quantity || 0));
   }, 0);
 });
 
 EventSchema.virtual('currentRevenue').get(function(this: IEvent) {
   return this.ticketOptions.reduce((total: number, ticket: ITicketOption) => {
-    return total + (ticket.price * ticket.soldQuantity);
+    return total + (ticket.price * (ticket.soldQuantity || 0));
   }, 0);
 });
 
 // check if event has available tickets
 EventSchema.methods.hasAvailableTickets = function(this: IEvent) {
   return this.ticketOptions.some((ticket: ITicketOption) => 
-    ticket.status === 'available' && ticket.availableQuantity > 0
+    ticket.status === 'available' && (ticket.quantity || 0) - (ticket.soldQuantity || 0) > 0
   );
 };
 
 // cheapest ticket price
 EventSchema.methods.getCheapestTicketPrice = function(this: IEvent) {
   const availableTickets = this.ticketOptions.filter((ticket: ITicketOption) => 
-    ticket.status === 'available' && ticket.availableQuantity > 0
+    ticket.status === 'available' && (ticket.quantity || 0) - (ticket.soldQuantity || 0) > 0
   );
   
   if (availableTickets.length === 0) return null;
@@ -198,7 +203,7 @@ EventSchema.methods.getCheapestTicketPrice = function(this: IEvent) {
 //  most expensive ticket price
 EventSchema.methods.getMostExpensiveTicketPrice = function(this: IEvent) {
   const availableTickets = this.ticketOptions.filter((ticket: ITicketOption) => 
-    ticket.status === 'available' && ticket.availableQuantity > 0
+    ticket.status === 'available' && (ticket.quantity || 0) - (ticket.soldQuantity || 0) > 0
   );
   
   if (availableTickets.length === 0) return null;

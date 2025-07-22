@@ -1,6 +1,7 @@
 
 export interface Event {
   id: string;
+  _id: string;
   title: string;
   subtitle?: string;
   description: string;
@@ -16,6 +17,7 @@ export interface Event {
   has_price: boolean;
   has_description: boolean;
   has_image: boolean;
+  //isCustom: boolean;
 }
   
 export interface CartItem {
@@ -47,36 +49,84 @@ export interface TicketmasterResponse {
 }
 
 export interface TicketmasterEvent {
-  id: string;
   name: string;
+  id: string;
   description?: string;
-  info?: string;
-  pleaseNote?: string;
-  url?: string;
-  images?: Array<{
-    url: string;
-    width?: number;
-    height?: number;
-  }>;
-  dates?: {
-    start?: {
-      localDate?: string;
-      localTime?: string;
+  dates: {
+    start: {
+      localDate: string;
+      localTime: string;
+      dateTime: string;
+      dateTBD: boolean;
+      dateTBA: boolean;
+      timeTBA: boolean;
+      noSpecificTime: boolean;
     };
+    end?: {
+      localDate: string;
+      localTime: string;
+      dateTime: string;
+      approximate: boolean;
+      noSpecificTime: boolean;
+    };
+    timezone: string;
+    status: { code: string };
+    spanMultipleDays: boolean;
   };
-  priceRanges?: Array<{
-    min: number;
-    max: number;
+  classifications?: Array<{
+    primary: boolean;
+    segment: {
+      id: string;
+      name: string;
+    };
+    genre: {
+      id: string;
+      name: string;
+    };
+    subGenre: {
+      id: string;
+      name: string;
+    };
+    type: {
+      id: string;
+      name: string;
+    };
+    subType: {
+      id: string;
+      name: string;
+    };
+    family: boolean;
+  }>;
+  images?: Array<{
+    ratio: string;
+    url: string;
+    width: number;
+    height: number;
+    fallback?: boolean;
   }>;
   _embedded?: {
     venues?: Array<{
-      name?: string;
-      city?: {
-        name?: string;
+      name: string;
+      address?: {
+        line1: string;
+        line2?: string;
       };
-      state?: {
-        stateCode?: string;
+      city: {
+        name: string;
       };
-    }>;
+      state: {
+        name: string;
+        stateCode: string;
+      };
+      country: {
+        name: string;
+        countryCode: string;
+      };
+      postalCode: string;
+    }> | any; 
   };
-}
+  _links?: any;
+  ticketing?: any;
+  [key: string]: any;
+  };
+
