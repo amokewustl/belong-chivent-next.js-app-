@@ -60,11 +60,11 @@ export async function GET(request: NextRequest) {
 
       const mongo = await Mongo.getInstance();
       await mongo.clientPromise.db('test').collection('events-test').deleteMany({});
-            await mongo.clientPromise.db('test').collection('events-test').insertMany(
-              events.events.map(event => convertToMongoEvent(event))
+            await mongo.clientPromise.db('test').collection('events').insertMany(
+              events.events
             )
             //const newEvnts = await mongo.clientPromise.db('test').collection('events-test').find({}).toArray()
-      return NextResponse.json({events: newEvnts});
+      return NextResponse.json({events: events.events});
       console.log('Successfully fetched and cached events:', events.events.length);
     }catch(errror){
       console.log(errror)

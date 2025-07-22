@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { serialize } from 'cookie';
-import connectDB from '@/lib/mongodb';
+import Mongo from '@/lib/mongodb';
 import User from '@/models/user';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'random-string';
@@ -13,7 +13,7 @@ if (!JWT_SECRET) {
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await Mongo.getInstance();
     
     const { username, password } = await request.json();
 

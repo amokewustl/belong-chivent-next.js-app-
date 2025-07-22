@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
-import connectDB from '@/lib/mongodb';
+import Mongo from '@/lib/mongodb';
 import User from '@/models/user';
 
 
@@ -8,7 +8,7 @@ const ADMIN_SECRET_CODE = "lakersin5";
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await Mongo.getInstance();
     const { username, email, password, firstName, lastName, phone, dateOfBirth, adminCode, address, preferences, profile} = await request.json();
 
     // Validation

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import connectDB from '@/lib/mongodb';
+import Mongo from '@/lib/mongodb';
 import User from '@/models/user';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'random-string';
@@ -11,7 +11,7 @@ if (!JWT_SECRET) {
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    await Mongo.getInstance();
     
     const token = request.cookies.get('admin-token')?.value;
 
