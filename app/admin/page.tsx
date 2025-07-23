@@ -8,6 +8,11 @@ import { Event } from '@/types';
 import { fetchEnoughEvents } from '@/lib/api';
 import { EventFormDialog } from '@/components/EventFormDialog';
 
+interface ExtendedEvent extends Event {
+  source: 'custom' | 'ticketmaster';
+  uniqueKey: string; 
+}
+
 export default function AdminPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,10 +55,20 @@ export default function AdminPage() {
         fetchEnoughEvents(50, 10, 0)
       ]);
 
-      // Combine custom and Ticketmaster events
-      const customEvents = customEventsResponse.events || [];
-      const ticketmasterEvents = ticketmasterData.events || [];
-      const allEvents = [...customEvents, ...ticketmasterEvents];
+    // Combine custom and Ticketmaster events
+    const customEvents: ExtendedEvent[] = (customEventsResponse.events || []).map((event: Event, index: number) => ({
+      ...event,
+      source: 'custom' as const,
+      uniqueKey: `custom-${event.id || index}` 
+    }));
+
+    const ticketmasterEvents: ExtendedEvent[] = (ticketmasterData.events || []).map((event: Event, index: number) => ({
+      ...event,
+      source: 'ticketmaster' as const,
+      uniqueKey: `ticketmaster-${event.id || index}` 
+    }));
+
+    const allEvents = [...customEvents, ...ticketmasterEvents];
 
       setEvents(allEvents);
       calculateStats(allEvents);
