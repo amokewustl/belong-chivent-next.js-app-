@@ -17,6 +17,13 @@ interface User {
   lastName?: string;
   role: string;
 }
+// make date and times more readable - done
+// fix id's on admin page to the id's in the database - done
+// fix create/ delete/ update event
+//have a page for each event
+//ticketing options
+//sort/ search bar 
+//profile page
 
 export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);

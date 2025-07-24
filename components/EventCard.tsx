@@ -20,8 +20,83 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onAuthRequired }) =
   const Cart = useCart();
   const { user, isAuthenticated } = useUser();
 
+  const formatEventDate = (dateString: string) => {
+    const eventDate = dayjs(dateString);
+    const today = dayjs();
+    const tomorrow = today.add(1, 'day');
+    const yesterday = today.subtract(1, 'day');
+    
+    if (eventDate.isSame(today, 'day')) {
+      return `Today, ${eventDate.format('dddd')}`;
+    } else if (eventDate.isSame(tomorrow, 'day')) {
+      return `Tomorrow, ${eventDate.format('dddd')}`;
+    } else if (eventDate.isSame(yesterday, 'day')) {
+      return `Yesterday, ${eventDate.format('dddd')}`;
+    } else if (eventDate.diff(today, 'days') <= 7 && eventDate.diff(today, 'days') > 1) {
+      // Within a week from now
+      return eventDate.format('dddd, MMMM D');
+    } else {
+      // Use full date format MM/DD/YYYY with day of week
+      return eventDate.format('dddd, M/D/YYYY');
+    }
+  };
+
+  const formatEventTime = (timeString: string) => {
+    if (timeString === 'TBA' || !timeString) {
+      return 'TBA';
+    }
+    
+    const cleanTime = timeString.trim();
+    
+    if (cleanTime.toLowerCase().includes('am') || cleanTime.toLowerCase().includes('pm')) {
+      return cleanTime;
+    }
+    
+    if (cleanTime.includes(':')) {
+      const [hoursStr, minutesStr] = cleanTime.split(':');
+      const hours = parseInt(hoursStr, 10);
+      const minutes = parseInt(minutesStr, 10);
+      
+      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+        const displayMinutes = minutes.toString().padStart(2, '0');
+        return `${displayHours}:${displayMinutes} ${period}`;
+      }
+    }
+    
+    if (/^\d{4}$/.test(cleanTime)) {
+      const hours = parseInt(cleanTime.substring(0, 2), 10);
+      const minutes = parseInt(cleanTime.substring(2, 4), 10);
+      
+      if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+        const displayMinutes = minutes.toString().padStart(2, '0');
+        return `${displayHours}:${displayMinutes} ${period}`;
+      }
+    }
+    
+    if (/^\d{3}$/.test(cleanTime)) {
+      const hours = parseInt(cleanTime.substring(0, 1), 10);
+      const minutes = parseInt(cleanTime.substring(1, 3), 10);
+      
+      if (hours >= 0 && hours <= 9 && minutes >= 0 && minutes <= 59) {
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours === 0 ? 12 : hours;
+        const displayMinutes = minutes.toString().padStart(2, '0');
+        return `${displayHours}:${displayMinutes} ${period}`;
+      }
+    }
+    
+    return cleanTime;
+  };
+
   const handleViewDetails = () => {
-    alert(`Event: ${event.title}\n\nDescription: ${event.description}\n\nLocation: ${event.location}\n\nDate: ${event.startDate}\nTime: ${event.startTime}`);
+    const formattedDate = formatEventDate(event.startDate);
+    const formattedTime = formatEventTime(event.startTime);
+    
+    alert(`Event: ${event.title}\n\nDescription: ${event.description}\n\nLocation: ${event.location}\n\nDate: ${formattedDate}\nTime: ${formattedTime}`);
   };
 
   const handleAddToCart = () => {
@@ -38,6 +113,9 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onAuthRequired }) =
     Cart.addToCart(event);
     alert(`${event.title} added to cart!`);
   };
+
+  const formattedDate = formatEventDate(event.startDate);
+  const formattedTime = formatEventTime(event.startTime);
 
   return (
     <Card 
@@ -132,13 +210,13 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onAuthRequired }) =
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <EventIcon fontSize="small" color="action" />
             <Typography variant="body2" color="text.secondary">
-              {event.startDate}
+              {formattedDate}
             </Typography>
-            {event.startTime !== 'TBA' && (
+            {formattedTime !== 'TBA' && (
               <>
                 <AccessTime fontSize="small" color="action" sx={{ ml: 1 }} />
                 <Typography variant="body2" color="text.secondary">
-                  {event.startTime}
+                  {formattedTime}
                 </Typography>
               </>
             )}

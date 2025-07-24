@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Typography, Box, Paper, CircularProgress, Alert, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip} from '@mui/material';
-import { Event as EventIcon, AttachMoney, Image, LocalOffer, Add, Edit, Delete } from '@mui/icons-material';
+import { Event as EventIcon, AttachMoney, Image, LocalOffer, Add, Edit, Delete, Launch } from '@mui/icons-material';
 import { Event } from '@/types';
 import { fetchEnoughEvents } from '@/lib/api';
 import { EventFormDialog } from '@/components/EventFormDialog';
@@ -14,7 +14,7 @@ interface ExtendedEvent extends Event {
 }
 
 export default function AdminPage() {
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<ExtendedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export default function AdminPage() {
     }
   };
 
-  const calculateStats = (eventList: Event[]) => {
+  const calculateStats = (eventList: ExtendedEvent[]) => {
     const totalEvents = eventList.length;
     const eventsWithPrices = eventList.filter(e => e.has_price).length;
     const eventsWithImages = eventList.filter(e => e.has_image).length;
@@ -347,7 +347,7 @@ export default function AdminPage() {
               </TableHead>
               <TableBody>
                 {events.map((event) => (
-                  <TableRow key={event.id}>
+                  <TableRow key={event.uniqueKey}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {event.has_image && (
