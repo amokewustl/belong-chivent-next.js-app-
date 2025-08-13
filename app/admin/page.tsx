@@ -3,9 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Typography, Box, Paper, CircularProgress, Alert, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip} from '@mui/material';
-import { Event as EventIcon, AttachMoney, Image, LocalOffer, Add, Edit, Delete, Launch } from '@mui/icons-material';
+import { Event as EventIcon, AttachMoney, Image, LocalOffer, Add, Edit, Delete, Launch, Refresh } from '@mui/icons-material';
 import { Event } from '@/types';
-import { fetchEnoughEvents } from '@/lib/api';
 import { EventFormDialog } from '@/components/EventFormDialog';
 
 interface ExtendedEvent extends Event {
@@ -22,11 +21,15 @@ export default function AdminPage() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [stats, setStats] = useState({
     totalEvents: 0,
+    customEvents: 0,
+    ticketmasterEvents: 0,
     avgPrice: 0,
     eventsWithImages: 0,
     eventsWithPrices: 0
   });
   const router = useRouter();
+
+  const MAX_DISPLAYED_EVENTS = 40;
 
   useEffect(() => {
     loadEvents();
@@ -37,41 +40,37 @@ export default function AdminPage() {
     setError(null);
     
     try {
-      // Load both custom events and Ticketmaster events
-      const [customEventsResponse, ticketmasterData] = await Promise.all([
-        fetch('/api/events', {
-          credentials: 'include', 
-        }).then(async res => {
-          if (res.status === 401) {
-            // User is not authenticated redirect to login
-            router.push('/admin');
-            throw new Error('Authentication required');
-          }
-          if (!res.ok) {
-            throw new Error(`Failed to fetch events: ${res.status}`);
-          }
-          return res.json();
-        }),
-        fetchEnoughEvents(50, 10, 0)
-      ]);
+      console.log('Loading events from database...');
+      
+      const response = await fetch('/api/events', {
+        credentials: 'include', 
+      });
 
-    // Combine custom and Ticketmaster events
-    const customEvents: ExtendedEvent[] = (customEventsResponse.events || []).map((event: Event, index: number) => ({
-      ...event,
-      source: 'custom' as const,
-      uniqueKey: `custom-${event.id || index}` 
-    }));
+      if (response.status === 401) {
+        router.push('/admin');
+        throw new Error('Authentication required');
+      }
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch events: ${response.status}`);
+      }
 
-    const ticketmasterEvents: ExtendedEvent[] = (ticketmasterData.events || []).map((event: Event, index: number) => ({
-      ...event,
-      source: 'ticketmaster' as const,
-      uniqueKey: `ticketmaster-${event.id || index}` 
-    }));
+      const data = await response.json();
+      console.log('Events response:', data);
 
-    const allEvents = [...customEvents, ...ticketmasterEvents];
+      const databaseEvents: ExtendedEvent[] = (data.events || []).map((event: any, index: number) => ({
+        ...event,
+        source: event.source || 'custom' as const,
+        uniqueKey: `db-${event.id || event._id || index}`
+      }));
 
-      setEvents(allEvents);
-      calculateStats(allEvents);
+      console.log('Transformed events:', databaseEvents);
+
+      const limitedEvents = databaseEvents.slice(0, MAX_DISPLAYED_EVENTS);
+      setEvents(limitedEvents);
+      
+      calculateStats(limitedEvents);
+      
     } catch (err) {
       console.error('Error loading events:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load events';
@@ -86,16 +85,20 @@ export default function AdminPage() {
     }
   };
 
-  const calculateStats = (eventList: ExtendedEvent[]) => {
-    const totalEvents = eventList.length;
-    const eventsWithPrices = eventList.filter(e => e.has_price).length;
-    const eventsWithImages = eventList.filter(e => e.has_image).length;
-    const avgPrice = eventList
-      .filter(e => e.has_price)
+  const calculateStats = (displayedEvents: ExtendedEvent[]) => {
+    const totalEvents = displayedEvents.length;
+    const customEvents = displayedEvents.filter(e => e.source === 'custom').length;
+    const ticketmasterEvents = displayedEvents.filter(e => e.source === 'ticketmaster').length;
+    const eventsWithPrices = displayedEvents.filter(e => e.has_price).length;
+    const eventsWithImages = displayedEvents.filter(e => e.has_image).length;
+    const avgPrice = displayedEvents
+      .filter(e => e.has_price && e.price_value > 0)
       .reduce((sum, e) => sum + e.price_value, 0) / eventsWithPrices || 0;
 
     setStats({
       totalEvents,
+      customEvents,
+      ticketmasterEvents,
       avgPrice,
       eventsWithImages,
       eventsWithPrices
@@ -107,16 +110,18 @@ export default function AdminPage() {
     setFormOpen(true);
   };
 
-  const handleEditEvent = (event: Event) => {
+  const handleEditEvent = (event: ExtendedEvent) => {
     setEditingEvent(event);
     setFormOpen(true);
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to delete this event?')) return;
+  const handleDeleteEvent = async (event: ExtendedEvent) => {
+    if (!confirm(`Are you sure you want to delete "${event.title}"?`)) return;
 
     try {
-      const response = await fetch(`/api/events/${eventId}`, {
+      console.log('Deleting event with ID:', event.id);
+      
+      const response = await fetch(`/api/events/${event.id}`, {
         method: 'DELETE',
         credentials: 'include', 
       });
@@ -127,19 +132,23 @@ export default function AdminPage() {
       }
 
       if (!response.ok) {
-        throw new Error('Failed to delete event');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete event');
       }
 
       setSuccess('Event deleted successfully');
-      loadEvents();
+      // Reload events to reflect the deletion
+      await loadEvents();
     } catch (err) {
       console.error('Error deleting event:', err);
-      setError('Failed to delete event');
+      setError(err instanceof Error ? err.message : 'Failed to delete event');
     }
   };
 
   const handleFormSubmit = async (eventData: Partial<Event>) => {
     try {
+      console.log('Submitting event data:', eventData);
+      
       const url = editingEvent ? `/api/events/${editingEvent.id}` : '/api/events';
       const method = editingEvent ? 'PUT' : 'POST';
 
@@ -158,16 +167,23 @@ export default function AdminPage() {
       }
 
       if (!response.ok) {
-        throw new Error(`Failed to ${editingEvent ? 'update' : 'create'} event`);
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(errorData.error || `Failed to ${editingEvent ? 'update' : 'create'} event`);
       }
+
+      const result = await response.json();
+      console.log('API Response:', result);
 
       setSuccess(`Event ${editingEvent ? 'updated' : 'created'} successfully`);
       setFormOpen(false);
       setEditingEvent(null);
-      loadEvents();
+      
+      // Reload events to reflect the changes
+      await loadEvents();
     } catch (err) {
       console.error('Error saving event:', err);
-      setError(`Failed to ${editingEvent ? 'update' : 'create'} event`);
+      setError(err instanceof Error ? err.message : `Failed to ${editingEvent ? 'update' : 'create'} event`);
     }
   };
 
@@ -179,6 +195,32 @@ export default function AdminPage() {
   const clearMessages = () => {
     setError(null);
     setSuccess(null);
+  };
+
+  const refreshTicketmasterEvents = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Refreshing Ticketmaster events...');
+      
+      const response = await fetch('/api/events?refresh=true&targetCount=50&maxPages=10&page=0', {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh Ticketmaster events');
+      }
+      
+      setSuccess('Ticketmaster events refreshed successfully');
+      // Reload all events
+      await loadEvents(); 
+    } catch (err) {
+      console.error('Error refreshing Ticketmaster events:', err);
+      setError(err instanceof Error ? err.message : 'Failed to refresh Ticketmaster events');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRetry = () => {
@@ -245,15 +287,26 @@ export default function AdminPage() {
               Manage events and view analytics
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<Add />}
-            onClick={handleCreateEvent}
-            sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: 'grey.100' } }}
-          >
-            Create Event
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<Refresh />}
+              onClick={refreshTicketmasterEvents}
+              disabled={loading}
+            >
+              Refresh Ticketmaster
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<Add />}
+              onClick={handleCreateEvent}
+              sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: 'grey.100' } }}
+            >
+              Create Event
+            </Button>
+          </Box>
         </Box>
       </Paper>
 
@@ -266,8 +319,8 @@ export default function AdminPage() {
           gap: 3, 
           mb: 4,
           '& > *': {
-            flex: '1 1 250px',
-            minWidth: '250px'
+            flex: '1 1 200px',
+            minWidth: '200px'
           }
         }}
       >
@@ -280,6 +333,9 @@ export default function AdminPage() {
           </Box>
           <Typography variant="h3" color="info.main" sx={{ fontWeight: 'bold' }}>
             {stats.totalEvents}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            {stats.customEvents} custom, {stats.ticketmasterEvents} external
           </Typography>
         </Paper>
         
@@ -324,6 +380,9 @@ export default function AdminPage() {
       <Paper sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ mb: 2 }}>
           Events Management
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Showing first {MAX_DISPLAYED_EVENTS} events for performance
+          </Typography>
         </Typography>
         
         {events.length === 0 ? (
@@ -341,6 +400,7 @@ export default function AdminPage() {
                   <TableCell>Date</TableCell>
                   <TableCell>Price</TableCell>
                   <TableCell>Location</TableCell>
+                  <TableCell>Source</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -363,7 +423,7 @@ export default function AdminPage() {
                             {event.title}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {event.description?.substring(0, 100)}...
+                            {event.description?.substring(0, 100)}{event.description && event.description.length > 100 ? '...' : ''}
                           </Typography>
                         </Box>
                       </Box>
@@ -393,6 +453,14 @@ export default function AdminPage() {
                       </Typography>
                     </TableCell>
                     <TableCell>
+                      <Chip
+                        label={event.source === 'custom' ? 'Custom' : 'Ticketmaster'}
+                        size="small"
+                        color={event.source === 'custom' ? 'primary' : 'default'}
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell>
                       <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                         {event.has_price && (
                           <Chip label="Price" size="small" color="success" variant="outlined" />
@@ -411,13 +479,15 @@ export default function AdminPage() {
                           color="primary"
                           onClick={() => handleEditEvent(event)}
                           size="small"
+                          title="Edit event"
                         >
                           <Edit />
                         </IconButton>
                         <IconButton
                           color="error"
-                          onClick={() => handleDeleteEvent(event.id)}
+                          onClick={() => handleDeleteEvent(event)}
                           size="small"
+                          title="Delete event"
                         >
                           <Delete />
                         </IconButton>

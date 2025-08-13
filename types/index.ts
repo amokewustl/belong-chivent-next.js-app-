@@ -1,3 +1,4 @@
+import { ObjectId } from 'mongodb';
 
 export interface Event {
   id: string;
@@ -17,7 +18,62 @@ export interface Event {
   has_price: boolean;
   has_description: boolean;
   has_image: boolean;
-  //isCustom: boolean;
+  source?: 'custom' | 'ticketmaster'; 
+  ticketmasterId?: string; 
+}
+
+export interface MongoEvent {
+  _id?: ObjectId;
+  id?: string; 
+  title: string;
+  description?: string;
+  organizer?: ObjectId;
+  venue?: {
+    name: string;
+    address: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      country: string;
+    };
+    capacity?: number;
+  };
+  dateTime?: {
+    start: Date;
+    end: Date;
+  };
+  ticketOptions?: Array<{
+    name: string;
+    description: string;
+    price: number;
+    totalQuantity: number;
+    soldQuantity: number;
+    status: string;
+  }>;
+  category?: string;
+  status?: string;
+  tags?: string[];
+  images?: string[];
+  url?: string;
+  
+  // Flat fields for easier querying and compatibility
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  price?: string;
+  price_value?: number;
+  image?: string;
+  has_price?: boolean;
+  has_image?: boolean;
+  has_description?: boolean;
+  
+  createdAt?: Date;
+  updatedAt?: Date;
+  source?: 'custom' | 'ticketmaster';
+  ticketmasterId?: string;
 }
   
 export interface CartItem {
@@ -52,6 +108,14 @@ export interface TicketmasterEvent {
   name: string;
   id: string;
   description?: string;
+  info?: string;
+  pleaseNote?: string;
+  priceRanges?: Array<{
+    type: string;
+    currency: string;
+    min: number;
+    max: number;
+  }>;
   dates: {
     start: {
       localDate: string;
@@ -127,6 +191,20 @@ export interface TicketmasterEvent {
   };
   _links?: any;
   ticketing?: any;
+  url?: string;
   [key: string]: any;
-  };
+}
 
+export interface SavedEvent {
+  eventId: string;
+  eventTitle: string;
+  savedAt: Date;
+}
+
+export interface User {
+  _id: ObjectId;
+  savedEvents?: SavedEvent[];
+  email?: string;
+  username?: string;
+  [key: string]: any; 
+}

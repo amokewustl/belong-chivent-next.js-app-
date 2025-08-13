@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Typography, Button, CircularProgress, Alert, Box, AppBar, Toolbar, Avatar, Menu, MenuItem, Divider } from '@mui/material';
-import { Login as LoginIcon, Person, Logout, AdminPanelSettings } from '@mui/icons-material';
+import { Login as LoginIcon, Person, Logout, AdminPanelSettings, Refresh} from '@mui/icons-material';
 import { Event } from '@/types';
 import { fetchEnoughEvents } from '@/lib/api';
 import { EventCard } from '@/components/EventCard';
@@ -17,72 +17,161 @@ interface User {
   lastName?: string;
   role: string;
 }
+
 // make date and times more readable - done
 // fix id's on admin page to the id's in the database - done
 // fix create/ delete/ update event
-//have a page for each event
+//have a page for each event - done 
 //ticketing options
-//sort/ search bar 
-//profile page
+// Events that happend yesterday should not be there - done 
+//sort/ search bar through mongo ( account for user mistakes in spellings)
+//profile page - done
+// be able to save events - done 
+// make saved events more obvious on event card and event page
+// be able to unsave events 
+// take into account sold out events filetr out sold out text and put it in corner in red icon - done
+//stripe
+// instead of pagination when user gets to the bottom of the page, more events load in - done
+// fix mobile view
 
 export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [hasMoreEvents, setHasMoreEvents] = useState(true);
   
   const User = useUser();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  const loadEvents = async (page: number) => {
-    setLoading(true);
+  // filter out past events
+  const filterUpcomingEvents = (eventsList: Event[]): Event[] => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+    
+    return eventsList.filter((event) => {
+      if (event.startDate === 'TBA' || !event.startDate) {
+        return true; 
+      }
+      try {
+        const eventDate = new Date(event.startDate);
+        return eventDate >= today;
+      } catch (error) {
+        console.warn(`Invalid date format for event ${event.id}: ${event.startDate}`);
+        return true; 
+      }
+    });
+  };
+
+  const loadEvents = async (page: number, refresh: boolean = false, append: boolean = false) => {
+    if (refresh) {
+      setRefreshing(true);
+    } else if (append) {
+      setLoadingMore(true);
+    } else {
+      setEventsLoading(true);
+    }
     setError(null);
+    
     try {
-      const { events: fetchedEvents } = await fetchEnoughEvents(20, 5, page);
-      console.log(fetchedEvents);
-      setEvents(fetchedEvents);
+      const refreshParam = refresh ? '&refresh=true' : '';
+      const response = await fetch(`/api/events?targetCount=20&maxPages=5&page=${page}${refreshParam}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load events: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Loaded events:', data.events?.length || 0);
+      
+      if (data.events && data.events.length > 0) {
+        const validEvents = data.events
+          .filter((event: Event) => event.title && event.startDate && event.location);
+
+        const upcomingEvents = filterUpcomingEvents(validEvents);
+        const sortedEvents = upcomingEvents.sort((a: Event, b: Event) => {
+          if (a.startDate === 'TBA' && b.startDate === 'TBA') return 0;
+          if (a.startDate === 'TBA') return 1;
+          if (b.startDate === 'TBA') return -1;
+          return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+        });
+        
+        if (append) {
+          setEvents(prevEvents => {
+            const existingIds = new Set(prevEvents.map(e => e.id));
+            const newEvents = sortedEvents.filter(e => !existingIds.has(e.id));
+            return [...prevEvents, ...newEvents];
+          });
+          
+          if (sortedEvents.length < 20) {
+            setHasMoreEvents(false);
+          }
+        } else {
+          setEvents(sortedEvents.slice(0, 20));
+          setHasMoreEvents(sortedEvents.length === 20);
+        }
+        
+        if (refresh) {
+          setLastRefresh(new Date());
+        }
+      } else {
+        if (!append) {
+          setEvents([]);
+        }
+        setHasMoreEvents(false);
+      }
     } catch (err) {
       setError('Failed to load events. Please try again.');
       console.error('Error loading events:', err);
-      setEvents([]);
+      if (!append) {
+        setEvents([]);
+      }
     } finally {
-      setLoading(false);
+      setEventsLoading(false);
+      setLoadingMore(false);
+      setRefreshing(false);
     }
   };
 
-  const checkAuthStatus = async () => {
-    try {
-      const response = await fetch('/api/me', {
-        credentials: 'include',
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        User.checkAuth();
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-    } finally {
-      setAuthLoading(false);
+  const handleScroll = useCallback(() => {
+    if (loadingMore || !hasMoreEvents) return;
+    
+    const scrollPosition = window.innerHeight + window.scrollY;
+    const threshold = document.documentElement.offsetHeight - 1000; 
+    
+    if (scrollPosition >= threshold) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      loadEvents(nextPage, false, true);
     }
-  };
+  }, [loadingMore, hasMoreEvents, currentPage]);
 
   useEffect(() => {
-    checkAuthStatus();
-    loadEvents(currentPage);
-  }, [currentPage]);
+    loadEvents(0);
+    
+    const refreshInterval = setInterval(() => {
+      loadEvents(0, true);
+      setCurrentPage(0);
+      setHasMoreEvents(true);
+    }, 100 * 60 * 1000); 
+    
+    return () => clearInterval(refreshInterval);
+  }, []);
 
-  const handleNextPage = () => {
-    setCurrentPage(prev => prev + 1);
-  };
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
-  const handlePrevPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(prev => prev - 1);
-    }
+  const handleRefreshEvents = () => {
+    setCurrentPage(0);
+    setHasMoreEvents(true);
+    loadEvents(0, true);
   };
 
   const handleLoginClick = () => {
@@ -96,7 +185,7 @@ export default function HomePage() {
       
       if (result.success) {
         setAuthDialogOpen(false);
-        await loadEvents(currentPage);
+        console.log('Login successful');
       } else {
         setLoginError(result.error || 'Login failed');
       }
@@ -125,7 +214,6 @@ export default function HomePage() {
     setAuthDialogOpen(false);
   };
 
-
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -134,6 +222,10 @@ export default function HomePage() {
     setAnchorEl(null);
   };
 
+  const handleProfileClick = () => {
+    handleProfileMenuClose();
+    window.location.href = '/profile';
+  };
 
   const handleAdminPanel = () => {
     handleProfileMenuClose();
@@ -154,7 +246,23 @@ export default function HomePage() {
     return User.user?.username?.charAt(0).toUpperCase() || 'U';
   };
 
-  if (authLoading) {
+  const formatLastRefresh = () => {
+    if (!lastRefresh) return '';
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - lastRefresh.getTime()) / (1000 * 60));
+    
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes === 1) return '1 minute ago';
+    if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+    
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours === 1) return '1 hour ago';
+    return `${diffHours} hours ago`;
+  };
+
+  const showInitialLoading = User.loading && eventsLoading;
+
+  if (showInitialLoading) {
     return (
       <Box className="loading-container">
         <Box sx={{ textAlign: 'center' }}>
@@ -221,7 +329,7 @@ export default function HomePage() {
                   </Box>
                 </MenuItem>
                 <Divider />
-                <MenuItem onClick={handleProfileMenuClose}>
+                <MenuItem onClick={handleProfileClick}>
                   <Person sx={{ mr: 1 }} />
                   Profile
                 </MenuItem>
@@ -245,8 +353,9 @@ export default function HomePage() {
               startIcon={<LoginIcon />}
               onClick={handleLoginClick}
               sx={{ textTransform: 'none' }}
+              disabled={User.loading}
             >
-              Login / Register
+              {User.loading ? 'Loading...' : 'Login / Register'}
             </Button>
           )}
         </Toolbar>
@@ -254,34 +363,29 @@ export default function HomePage() {
 
       {/* Main Content */}
       <Box sx={{ px: { xs: 2, md: 4 } }}>
-        <Typography variant="h3" component="h1" color="primary" gutterBottom>
-          Upcoming Events in Chicago
-        </Typography>
-        
-        <Box className="button-group" sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handlePrevPage}
-            disabled={currentPage <= 0}
-          >
-            Previous Page
-          </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+          <Typography variant="h3" component="h1" color="primary" gutterBottom sx={{ mb: 0 }}>
+            Upcoming Events in Chicago
+          </Typography>
           
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleNextPage}
+          {/* <Button
+            variant="outlined"
+            startIcon={refreshing ? <CircularProgress size={16} /> : <Refresh />}
+            onClick={handleRefreshEvents}
+            disabled={refreshing}
+            sx={{ textTransform: 'none' }}
           >
-            Next Page
-          </Button>
+            {refreshing ? 'Refreshing...' : 'Refresh Events'}
+          </Button> */}
         </Box>
         
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Page {currentPage + 1}
-        </Typography>
+        {lastRefresh && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Last updated: {formatLastRefresh()}
+          </Typography>
+        )}
         
-        {loading ? (
+        {eventsLoading ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <CircularProgress color="primary" size={40} />
             <Typography sx={{ mt: 2 }}>
@@ -290,22 +394,78 @@ export default function HomePage() {
           </Box>
         ) : error ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Alert severity="error" sx={{ maxWidth: 400, mx: 'auto' }}>
+            <Alert severity="error" sx={{ maxWidth: 400, mx: 'auto', mb: 2 }}>
               {error}
             </Alert>
+            <Button
+              variant="contained"
+              onClick={() => loadEvents(0)}
+              sx={{ mt: 2 }}
+            >
+              Try Again
+            </Button>
           </Box>
         ) : (!events || events.length === 0) ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="h6" color="text.secondary">
-              No events found for this page. Try another page or check back later.
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+              No upcoming events found.
             </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+              Try refreshing or check back later for new events.
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={handleRefreshEvents}
+              startIcon={<Refresh />}
+            >
+              Refresh Events
+            </Button>
           </Box>
         ) : (
-          <Box className="events-grid">
-            {events.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
-          </Box>
+          <>
+            <Box className="events-grid" sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)',
+                lg: 'repeat(4, 1fr)'
+              },
+              gap: 3,
+              mb: 4
+            }}>
+              {events.map((event) => (
+                <EventCard key={`${event.id}-${event.source}`} event={event} />
+              ))}
+            </Box>
+            
+            {/* Loading more indicator */}
+            {loadingMore && (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <CircularProgress color="primary" size={30} />
+                <Typography sx={{ mt: 2 }}>
+                  Loading more events...
+                </Typography>
+              </Box>
+            )}
+            
+            {/* End of events indicator */}
+            {!hasMoreEvents && events.length > 0 && (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body1" color="text.secondary">
+                  You've reached the end of available events
+                </Typography>
+                <Button
+                  variant="outlined"
+                  onClick={handleRefreshEvents}
+                  startIcon={<Refresh />}
+                  sx={{ mt: 2 }}
+                >
+                  Refresh for New Events
+                </Button>
+              </Box>
+            )}
+          </>
         )}
       </Box>
 
@@ -313,9 +473,9 @@ export default function HomePage() {
       <AuthDialog
         open={authDialogOpen}
         onClose={handleAuthDialogClose}
-        onSubmit={handleLogin}  // add register or login logic 
+        onSubmit={handleLogin}
         onRegister={handleRegister}
-        error = {loginError}
+        error={loginError}
       />
     </Box>
   );
