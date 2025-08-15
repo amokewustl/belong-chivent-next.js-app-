@@ -4,7 +4,6 @@ import { dayjs } from '@jstiava/chronos';
 import { generateUniqueId } from '@/utils/idUtils';
 import Mongo from '@/lib/mongodb';
 
-
 const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY || "pmbdy5uLSZnpbGGenJyLkA7xeRCPS20L";
 
 // In-memory cache
@@ -27,6 +26,162 @@ function isUpcomingEvent(startDate: string): boolean {
 }
 
 // GET - Fetch all events (both custom and ticketmaster)
+// Function to save/update events in database
+async function syncEventsToDatabase(events: any[]): Promise<void> {
+  if (events.length === 0) return;
+
+  try {
+    const mongo = await Mongo.getInstance();
+    const db = mongo.clientPromise.db('test');
+    const collection = db.collection('events');
+
+    const bulkOps = events.map(event => {
+      const dbEvent = {
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        organizer: event.source === 'ticketmaster' ? 'Ticketmaster' : null,
+        venue: {
+          name: event.location.split(',')[0] || 'Unknown Venue',
+          address: {
+            street: 'Unknown',
+            city: event.location.includes('Chicago') ? 'Chicago' : 'Chicago',
+            state: 'IL',
+            zipCode: 'Unknown',
+            country: 'USA'
+          }
+        },
+        dateTime: {
+          start: event.startDate !== 'TBA' && event.startTime !== 'TBA' ? 
+            new Date(`${event.startDate}T${event.startTime}`) : 
+            new Date(),
+          end: event.endTime !== 'TBA' ? 
+            new Date(`${event.startDate}T${event.endTime}`) : 
+            new Date()
+        },
+        ticketOptions: event.has_price ? [{
+          name: 'General Admission',
+          description: 'Standard ticket',
+          price: event.price_value,
+          totalQuantity: 100,
+          soldQuantity: 0,
+          status: 'available'
+        }] : [],
+        category: extractCategoryFromTitle(event.title) || 'other',
+        status: 'published',
+        tags: extractTagsFromEvent(event),
+        images: event.has_image ? [event.image] : [],
+        url: event.url || '',
+        location: event.location,
+        startDate: event.startDate,
+        endDate: event.endDate || event.startDate,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        price: event.price,
+        price_value: event.price_value,
+        image: event.image,
+        has_price: event.has_price,
+        has_image: event.has_image,
+        has_description: event.has_description,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        source: event.source || 'custom',
+        ticketmasterId: event.source === 'ticketmaster' ? event.id : null
+      };
+
+      return {
+        updateOne: {
+          filter: { 
+            $or: [
+              { id: event.id },
+              { ticketmasterId: event.id }
+            ]
+          },
+          update: { 
+            $set: {
+              ...dbEvent,
+              updatedAt: new Date()
+            },
+            $setOnInsert: {
+              createdAt: new Date()
+            }
+          },
+          upsert: true
+        }
+      };
+    });
+
+    const result = await collection.bulkWrite(bulkOps);
+    
+    console.log(`Database sync results:`, {
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      upsertedCount: result.upsertedCount,
+      insertedCount: result.insertedCount
+    });
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const cleanupResult = await collection.deleteMany({
+      $and: [
+        { 
+          $or: [
+            { 'dateTime.start': { $lt: thirtyDaysAgo } },
+            { startDate: { $lt: thirtyDaysAgo.toISOString().split('T')[0] } }
+          ]
+        },
+        { source: 'ticketmaster' } 
+      ]
+    });
+    
+    if (cleanupResult.deletedCount > 0) {
+      console.log(`Cleaned up ${cleanupResult.deletedCount} old events`);
+    }
+
+  } catch (error) {
+    console.error('Error syncing events to database:', error);
+  }
+}
+function extractCategoryFromTitle(title: string): string {
+  const titleLower = title.toLowerCase();
+  
+  if (titleLower.includes('concert') || titleLower.includes('music') || titleLower.includes('band')) return 'music';
+  if (titleLower.includes('comedy') || titleLower.includes('stand up')) return 'comedy';
+  if (titleLower.includes('theater') || titleLower.includes('theatre') || titleLower.includes('play')) return 'theater';
+  if (titleLower.includes('sport') || titleLower.includes('game') || titleLower.includes('match')) return 'sports';
+  if (titleLower.includes('festival') || titleLower.includes('fair')) return 'festival';
+  if (titleLower.includes('food') || titleLower.includes('dining')) return 'food';
+  if (titleLower.includes('art') || titleLower.includes('gallery') || titleLower.includes('exhibit')) return 'arts';
+  if (titleLower.includes('business') || titleLower.includes('conference') || titleLower.includes('networking')) return 'business';
+  if (titleLower.includes('tech') || titleLower.includes('technology')) return 'technology';
+  
+  return 'other';
+}
+
+function extractTagsFromEvent(event: any): string[] {
+  const tags: string[] = [];
+  const title = event.title?.toLowerCase() || '';
+  const description = event.description?.toLowerCase() || '';
+  
+  // Common event tags
+  const tagWords = ['live', 'outdoor', 'indoor', 'family', 'adult', 'kids', 'free', 'premium', 'vip'];
+  
+  tagWords.forEach(tag => {
+    if (title.includes(tag) || description.includes(tag)) {
+      tags.push(tag);
+    }
+  });
+  
+  const category = extractCategoryFromTitle(event.title);
+  if (category !== 'other') {
+    tags.push(category);
+  }
+  
+  return [...new Set(tags)]; // Remove duplicates
+}
+
+// GET - Fetch all events (both custom and ticketmaster) and sync to database
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -101,13 +256,18 @@ export async function GET(request: NextRequest) {
       .filter(event => isUpcomingEvent(event.startDate)) 
       .slice(0, targetCount); 
     } catch (mongoError) {
-      console.error(' MongoDB error (non-blocking):', mongoError);
+      console.error('MongoDB error (non-blocking):', mongoError);
     }
 
     let ticketmasterEvents: any[] = [];
     try {
-      const tmResult = await fetchTicketmasterEvents(targetCount - mongoEvents.length, maxPages, currentPage);
-      ticketmasterEvents = tmResult.events.filter(event => isUpcomingEvent(event.startDate));
+      const remainingCount = Math.max(0, targetCount - mongoEvents.length);
+      if (remainingCount > 0) {
+        console.log(`Fetching ${remainingCount} more events from Ticketmaster`);
+        const tmResult = await fetchTicketmasterEvents(remainingCount, maxPages, currentPage);
+        ticketmasterEvents = tmResult.events.filter(event => isUpcomingEvent(event.startDate));
+        console.log(`Found ${ticketmasterEvents.length} Ticketmaster events`);
+      }
     } catch (tmError) {
       console.error('Ticketmaster error:', tmError);
     }
@@ -119,6 +279,7 @@ export async function GET(request: NextRequest) {
         if (b.startDate === 'TBA') return -1;
         return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
       });
+    await syncEventsToDatabase(allEvents);
       
     if (allEvents.length === 0) {
       return NextResponse.json({
@@ -138,8 +299,6 @@ export async function GET(request: NextRequest) {
     }, { status: 200 });
 
   } catch (error) {
-    console.error('💥 Critical error in events API:', error);
-    
     return NextResponse.json({
       error: 'Failed to fetch events',
       details: error instanceof Error ? error.message : 'Unknown error',
@@ -208,7 +367,7 @@ export async function fetchTicketmasterEvents(
       
       const eventsToAdd = filteredEvents.slice(0, targetCount - allEvents.length);
       allEvents.push(...eventsToAdd);
-      
+     
       if (allEvents.length >= targetCount) {
         break;
       }
@@ -311,6 +470,7 @@ function processSingleEvent(ticketmasterEvent: TicketmasterEvent): any {
     price_value: priceValue,
     location: venue,
     startDate,
+    endDate: startDate, 
     startTime,
     endTime,
     url: ticketmasterEvent.url || "",

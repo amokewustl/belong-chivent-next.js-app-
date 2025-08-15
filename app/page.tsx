@@ -1,13 +1,21 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Typography, Button, CircularProgress, Alert, Box, AppBar, Toolbar, Avatar, Menu, MenuItem, Divider } from '@mui/material';
-import { Login as LoginIcon, Person, Logout, AdminPanelSettings, Refresh} from '@mui/icons-material';
+import { 
+  Typography, Button, CircularProgress, Alert, Box, AppBar, Toolbar, Avatar, 
+  Menu, MenuItem, Divider, TextField, InputAdornment, Chip, Stack, Autocomplete,
+  FormControl, InputLabel, Select, Fade
+} from '@mui/material';
+import { 
+  Login as LoginIcon, Person, Logout, AdminPanelSettings, Refresh, Search as SearchIcon,
+  Clear as ClearIcon, FilterList, TrendingUp
+} from '@mui/icons-material';
 import { Event } from '@/types';
 import { fetchEnoughEvents } from '@/lib/api';
 import { EventCard } from '@/components/EventCard';
 import { AuthDialog } from '@/components/AuthDialog';
 import { useUser } from '@/context/UserContext';
+import { searchEvents, getAvailableGenres } from '@/lib/search-client';
 
 interface User {
   id: string;
@@ -36,6 +44,7 @@ interface User {
 
 export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [searchResults, setSearchResults] = useState<Event[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -45,11 +54,143 @@ export default function HomePage() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [hasMoreEvents, setHasMoreEvents] = useState(true);
   
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGenre, setSelectedGenre] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [availableGenres, setAvailableGenres] = useState<string[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [searchTotal, setSearchTotal] = useState(0);
+  
   const User = useUser();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  // filter out past events
+  // Popular search terms
+  const popularSearches = ['Concert', 'Comedy', 'Food Festival', 'Theater', 'Sports', 'Art'];
+
+  // Load available genres on component mount
+  useEffect(() => {
+    const loadGenres = async () => {
+      try {
+        const genres = await getAvailableGenres();
+        setAvailableGenres(genres);
+      } catch (error) {
+        console.error('Failed to load genres:', error);
+      }
+    };
+    loadGenres();
+  }, []);
+
+  // Search function using API routes
+  const performSearch = async (query: string, genre: string = '', skip: number = 0) => {
+    if (!query.trim() && !genre.trim()) {
+      setIsSearching(false);
+      setSearchResults([]);
+      setSearchHasMore(false);
+      setSearchTotal(0);
+      return;
+    }
+
+    if (skip === 0) {
+      setSearchLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+    setSearchError(null);
+    
+    try {
+      const result = await searchEvents({
+        query: query.trim(),
+        genre: genre.trim(),
+        limit: 20,
+        skip
+      });
+      
+      if (skip === 0) {
+        setSearchResults(result.events);
+      } else {
+        setSearchResults(prev => [...prev, ...result.events]);
+      }
+      
+      setSearchHasMore(result.hasMore);
+      setSearchTotal(result.total);
+      setIsSearching(true);
+      
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchError('Search failed. Please try again.');
+      if (skip === 0) {
+        setSearchResults([]);
+        setSearchHasMore(false);
+        setSearchTotal(0);
+      }
+    } finally {
+      setSearchLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  // Handle search input with debouncing
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    
+    // Debounced search
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(value, selectedGenre, 0);
+    }, 300);
+  };
+
+  // Handle genre selection
+  const handleGenreChange = (genre: string) => {
+    setSelectedGenre(genre);
+    performSearch(searchQuery, genre, 0);
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSelectedGenre('');
+    setIsSearching(false);
+    setSearchResults([]);
+    setSearchError(null);
+    setSearchHasMore(false);
+    setSearchTotal(0);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+  };
+
+  // Handle popular search click
+  const handlePopularSearchClick = (term: string) => {
+    setSearchQuery(term);
+    performSearch(term, selectedGenre, 0);
+  };
+
+  // Load more search results
+  const loadMoreSearchResults = () => {
+    if (!searchHasMore || loadingMore) return;
+    performSearch(searchQuery, selectedGenre, searchResults.length);
+  };
+
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Filter out past events
   const filterUpcomingEvents = (eventsList: Event[]): Event[] => {
     const today = new Date();
     today.setHours(0, 0, 0, 0); 
@@ -68,6 +209,7 @@ export default function HomePage() {
     });
   };
 
+  // Load regular events (non-search)
   const loadEvents = async (page: number, refresh: boolean = false, append: boolean = false) => {
     if (refresh) {
       setRefreshing(true);
@@ -138,40 +280,57 @@ export default function HomePage() {
     }
   };
 
+  // Handle scroll for infinite loading
   const handleScroll = useCallback(() => {
-    if (loadingMore || !hasMoreEvents) return;
+    if (loadingMore) return;
     
     const scrollPosition = window.innerHeight + window.scrollY;
-    const threshold = document.documentElement.offsetHeight - 1000; 
+    const threshold = document.documentElement.offsetHeight - 1000;
     
     if (scrollPosition >= threshold) {
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      loadEvents(nextPage, false, true);
+      if (isSearching && searchHasMore) {
+        // Load more search results
+        loadMoreSearchResults();
+      } else if (!isSearching && hasMoreEvents) {
+        // Load more regular events
+        const nextPage = currentPage + 1;
+        setCurrentPage(nextPage);
+        loadEvents(nextPage, false, true);
+      }
     }
-  }, [loadingMore, hasMoreEvents, currentPage]);
+  }, [loadingMore, hasMoreEvents, searchHasMore, currentPage, isSearching, searchResults.length]);
 
+  // Initial load and auto-refresh
   useEffect(() => {
     loadEvents(0);
     
     const refreshInterval = setInterval(() => {
-      loadEvents(0, true);
-      setCurrentPage(0);
-      setHasMoreEvents(true);
+      if (!isSearching) {
+        loadEvents(0, true);
+        setCurrentPage(0);
+        setHasMoreEvents(true);
+      }
     }, 100 * 60 * 1000); 
     
     return () => clearInterval(refreshInterval);
-  }, []);
+  }, [isSearching]);
 
+  // Scroll event listener
   useEffect(() => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
   const handleRefreshEvents = () => {
-    setCurrentPage(0);
-    setHasMoreEvents(true);
-    loadEvents(0, true);
+    if (isSearching) {
+      // Refresh search results
+      performSearch(searchQuery, selectedGenre, 0);
+    } else {
+      // Refresh regular events
+      setCurrentPage(0);
+      setHasMoreEvents(true);
+      loadEvents(0, true);
+    }
   };
 
   const handleLoginClick = () => {
@@ -260,7 +419,13 @@ export default function HomePage() {
     return `${diffHours} hours ago`;
   };
 
+  // Show loading only when BOTH authentication and events are loading initially
   const showInitialLoading = User.loading && eventsLoading;
+
+  // Determine which events to display
+  const displayEvents = isSearching ? searchResults : events;
+  const displayLoading = isSearching ? searchLoading : eventsLoading;
+  const displayHasMore = isSearching ? searchHasMore : hasMoreEvents;
 
   if (showInitialLoading) {
     return (
@@ -363,33 +528,142 @@ export default function HomePage() {
 
       {/* Main Content */}
       <Box sx={{ px: { xs: 2, md: 4 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-          <Typography variant="h3" component="h1" color="primary" gutterBottom sx={{ mb: 0 }}>
-            Upcoming Events in Chicago
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h3" component="h1" color="primary" gutterBottom>
+            {isSearching ? 'Search Results' : 'Upcoming Events in Chicago'}
           </Typography>
           
-          {/* <Button
-            variant="outlined"
-            startIcon={refreshing ? <CircularProgress size={16} /> : <Refresh />}
-            onClick={handleRefreshEvents}
-            disabled={refreshing}
-            sx={{ textTransform: 'none' }}
-          >
-            {refreshing ? 'Refreshing...' : 'Refresh Events'}
-          </Button> */}
+          {/* Search Section */}
+          <Box sx={{ mb: 3 }}>
+            <Stack spacing={2}>
+              {/* Search Bar and Genre Filter */}
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 2, 
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: { xs: 'stretch', md: 'flex-start' }
+              }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search events, venues, or keywords..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchQuery && (
+                      <InputAdornment position="end">
+                        <Button
+                          size="small"
+                          onClick={clearSearch}
+                          sx={{ minWidth: 'auto', p: 0.5 }}
+                        >
+                          <ClearIcon fontSize="small" />
+                        </Button>
+                      </InputAdornment>
+                    )
+                  }}
+                  sx={{ flexGrow: 1 }}
+                />
+                
+                <Autocomplete
+                  options={availableGenres}
+                  value={selectedGenre}
+                  onChange={(_, value) => handleGenreChange(value || '')}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder="Select genre..."
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <FilterList color="action" />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                  sx={{ minWidth: { xs: '100%', md: 200 } }}
+                  clearOnEscape
+                />
+              </Box>
+
+              {/* Popular Searches */}
+              {!isSearching && (
+                <Fade in={!isSearching}>
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <TrendingUp fontSize="small" color="action" />
+                      <Typography variant="body2" color="text.secondary">
+                        Popular searches:
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {popularSearches.map((term) => (
+                        <Chip
+                          key={term}
+                          label={term}
+                          onClick={() => handlePopularSearchClick(term)}
+                          variant="outlined"
+                          size="small"
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': {
+                              backgroundColor: 'action.hover'
+                            }
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+                </Fade>
+              )}
+
+              {/* Search Status */}
+              {isSearching && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {searchLoading ? 'Searching...' : `Found ${searchTotal} events`}
+                    {searchQuery && ` for "${searchQuery}"`}
+                    {selectedGenre && ` in "${selectedGenre}"`}
+                    {searchResults.length < searchTotal && ` (showing ${searchResults.length})`}
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={clearSearch}
+                    startIcon={<ClearIcon />}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Clear Search
+                  </Button>
+                </Box>
+              )}
+
+              {/* Search Error */}
+              {searchError && (
+                <Alert severity="error" onClose={() => setSearchError(null)}>
+                  {searchError}
+                </Alert>
+              )}
+            </Stack>
+          </Box>
         </Box>
         
-        {lastRefresh && (
+        {lastRefresh && !isSearching && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Last updated: {formatLastRefresh()}
           </Typography>
         )}
         
-        {eventsLoading ? (
+        {displayLoading && displayEvents.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <CircularProgress color="primary" size={40} />
             <Typography sx={{ mt: 2 }}>
-              Loading events...
+              {isSearching ? 'Searching events...' : 'Loading events...'}
             </Typography>
           </Box>
         ) : error ? (
@@ -405,21 +679,34 @@ export default function HomePage() {
               Try Again
             </Button>
           </Box>
-        ) : (!events || events.length === 0) ? (
+        ) : (!displayEvents || displayEvents.length === 0) ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-              No upcoming events found.
+              {isSearching ? 'No events found matching your search.' : 'No upcoming events found.'}
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-              Try refreshing or check back later for new events.
+              {isSearching 
+                ? 'Try adjusting your search terms or clearing filters.' 
+                : 'Try refreshing or check back later for new events.'
+              }
             </Typography>
-            <Button
-              variant="contained"
-              onClick={handleRefreshEvents}
-              startIcon={<Refresh />}
-            >
-              Refresh Events
-            </Button>
+            {isSearching ? (
+              <Button
+                variant="contained"
+                onClick={clearSearch}
+                startIcon={<ClearIcon />}
+              >
+                Clear Search
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                onClick={handleRefreshEvents}
+                startIcon={<Refresh />}
+              >
+                Refresh Events
+              </Button>
+            )}
           </Box>
         ) : (
           <>
@@ -434,7 +721,7 @@ export default function HomePage() {
               gap: 3,
               mb: 4
             }}>
-              {events.map((event) => (
+              {displayEvents.map((event) => (
                 <EventCard key={`${event.id}-${event.source}`} event={event} />
               ))}
             </Box>
@@ -450,10 +737,13 @@ export default function HomePage() {
             )}
             
             {/* End of events indicator */}
-            {!hasMoreEvents && events.length > 0 && (
+            {!displayHasMore && displayEvents.length > 0 && (
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <Typography variant="body1" color="text.secondary">
-                  You've reached the end of available events
+                  {isSearching ? 
+                    `You've seen all ${searchTotal} search results` : 
+                    'You\'ve reached the end of available events'
+                  }
                 </Typography>
                 <Button
                   variant="outlined"
@@ -461,8 +751,18 @@ export default function HomePage() {
                   startIcon={<Refresh />}
                   sx={{ mt: 2 }}
                 >
-                  Refresh for New Events
+                  {isSearching ? 'Refresh Search' : 'Refresh for New Events'}
                 </Button>
+                {isSearching && (
+                  <Button
+                    variant="outlined"
+                    onClick={clearSearch}
+                    startIcon={<ClearIcon />}
+                    sx={{ mt: 2, ml: 2 }}
+                  >
+                    Browse All Events
+                  </Button>
+                )}
               </Box>
             )}
           </>

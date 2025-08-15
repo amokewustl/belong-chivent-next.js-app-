@@ -1,25 +1,48 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardMedia, CardActions, Typography, Button, Chip, Box, Stack, IconButton, Tooltip } from '@mui/material';
+import { Card, CardContent, CardMedia, CardActions, Typography, Button, Chip, Box, Stack, IconButton, Tooltip, Alert, Snackbar } from '@mui/material';
 import {
   LocationOn, Event as EventIcon, AccessTime, Visibility, Bookmark, BookmarkBorder
 } from '@mui/icons-material';
-import { Event } from '@/types';
-import { useRouter } from 'next/navigation';
-import { useUser } from '@/context/UserContext';
-import { dayjs, Dayjs, Chronos } from '@jstiava/chronos';
-new Chronos;
+import { useRouter } from 'next/navigation'; 
+import { useUser } from '@/context/UserContext'; 
+
+interface Event {
+  id: string;
+  title: string;
+  description: string;
+  image: string;
+  price: string;
+  price_value: number;
+  location: string;
+  startDate: string;
+  startTime: string;
+  url: string;
+}
 
 interface EventCardProps {
   event: Event;
 }
 
 export const EventCard: React.FC<EventCardProps> = ({ event }) => {
-  const router = useRouter();
-  const User = useUser();
+  const router = useRouter(); 
+  const User = useUser(); 
   const [isSaved, setIsSaved] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error'>('success');
+
+  
+  useEffect(() => {
+    if (User.user?.savedEvents) {
+      const isEventSaved = User.user.savedEvents.some(
+        (savedEvent: any) => savedEvent.eventId === event.id
+      );
+      setIsSaved(isEventSaved);
+    } else {
+      setIsSaved(false);
+    }
+  }, [User.user?.savedEvents, event.id]);
 
   const parseEventStatus = (title: string) => {
     const statusPatterns = [
@@ -46,101 +69,57 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
 
   const { status, cleanTitle, hasStatus } = parseEventStatus(event.title);
 
-  useEffect(() => {
-    console.log('Checking if event is saved (initial load):', {
-      eventId: event.id,
-      userExists: !!User.user,
-      savedEventsCount: User.user?.savedEvents?.length || 0
-    });
-    
-    if (User.user && event) {
-      const savedEvents = User.user.savedEvents || [];
-      const isEventSaved = savedEvents.some((savedEvent: any) => {
-        console.log('Comparing:', savedEvent.eventId, 'with', event.id);
-        return savedEvent.eventId === event.id;
-      });
-      
-      console.log('Event saved status from server:', isEventSaved);
-      
-      // Only update if we don't already have a saved state or if not currently in a loading state
-      if (!saveLoading) {
-        setIsSaved(isEventSaved);
-      }
-    } else if (!User.user) {
-      setIsSaved(false);
-    }
-  }, [User.user?.savedEvents?.length, event.id]); 
+  const showSaveAlert = (message: string, severity: 'success' | 'error' = 'success') => {
+    setAlertMessage(message);
+    setAlertSeverity(severity);
+    setShowAlert(true);
+  };
 
   const formatEventDate = (dateString: string) => {
-    const eventDate = dayjs(dateString);
-    const today = dayjs();
-    const tomorrow = today.add(1, 'day');
-    const yesterday = today.subtract(1, 'day');
+    if (!dateString || dateString === 'TBA') return 'TBA';
     
-    if (eventDate.isSame(today, 'day')) {
-      return `Today, ${eventDate.format('dddd')}`;
-    } else if (eventDate.isSame(tomorrow, 'day')) {
-      return `Tomorrow, ${eventDate.format('dddd')}`;
-    } else if (eventDate.isSame(yesterday, 'day')) {
-      return `Yesterday, ${eventDate.format('dddd')}`;
-    } else if (eventDate.diff(today, 'days') <= 7 && eventDate.diff(today, 'days') > 1) {
-      // Within a week from now
-      return eventDate.format('dddd, MMMM D');
-    } else {
-      // Use full date format MM/DD/YYYY with day of week
-      return eventDate.format('dddd, M/D/YYYY');
+    try {
+      const eventDate = new Date(dateString);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      eventDate.setHours(0, 0, 0, 0);
+      
+      const diffTime = eventDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Tomorrow';
+      if (diffDays === -1) return 'Yesterday';
+      
+      return eventDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return dateString;
     }
   };
 
   const formatEventTime = (timeString: string) => {
-    if (timeString === 'TBA' || !timeString) {
-      return 'TBA';
+    if (timeString === 'TBA' || !timeString) return 'TBA';
+    
+    // If already formatted with AM/PM, return as is
+    if (timeString.toLowerCase().includes('am') || timeString.toLowerCase().includes('pm')) {
+      return timeString;
     }
     
-    const cleanTime = timeString.trim();
-    
-    if (cleanTime.toLowerCase().includes('am') || cleanTime.toLowerCase().includes('pm')) {
-      return cleanTime;
-    }
-    
-    if (cleanTime.includes(':')) {
-      const [hoursStr, minutesStr] = cleanTime.split(':');
-      const hours = parseInt(hoursStr, 10);
-      const minutes = parseInt(minutesStr, 10);
-      
-      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-        const displayMinutes = minutes.toString().padStart(2, '0');
-        return `${displayHours}:${displayMinutes} ${period}`;
-      }
-    }
-    
-    if (/^\d{4}$/.test(cleanTime)) {
-      const hours = parseInt(cleanTime.substring(0, 2), 10);
-      const minutes = parseInt(cleanTime.substring(2, 4), 10);
-      
+    // Handle HH:MM format
+    if (timeString.includes(':')) {
+      const [hours, minutes] = timeString.split(':').map(Number);
       if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
         const period = hours >= 12 ? 'PM' : 'AM';
         const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-        const displayMinutes = minutes.toString().padStart(2, '0');
-        return `${displayHours}:${displayMinutes} ${period}`;
+        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
       }
     }
     
-    if (/^\d{3}$/.test(cleanTime)) {
-      const hours = parseInt(cleanTime.substring(0, 1), 10);
-      const minutes = parseInt(cleanTime.substring(1, 3), 10);
-      
-      if (hours >= 0 && hours <= 9 && minutes >= 0 && minutes <= 59) {
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const displayHours = hours === 0 ? 12 : hours;
-        const displayMinutes = minutes.toString().padStart(2, '0');
-        return `${displayHours}:${displayMinutes} ${period}`;
-      }
-    }
-    
-    return cleanTime;
+    return timeString;
   };
 
   const handleViewDetails = () => {
@@ -148,62 +127,53 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
   };
 
   const handleSaveEvent = async (e: React.MouseEvent) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     
     if (!User.isAuthenticated || !User.user) {
-      alert('Please log in to save events');
+      showSaveAlert('Please log in to save events', 'error');
       return;
     }
 
     setSaveLoading(true);
     const previousSavedState = isSaved;
+    const newSavedState = !isSaved;
+    
+    setIsSaved(newSavedState);
     
     try {
-      console.log('=== Save Event Action ===');
-      console.log('Current isSaved state:', isSaved);
-      console.log('Event details:', { 
-        id: event.id, 
-        title: cleanTitle, 
-        action: isSaved ? 'REMOVE' : 'SAVE'
-      });
+      const endpoint = '/api/me/saved-events';
+      const method = previousSavedState ? 'DELETE' : 'POST';
       
-      const newSavedState = !isSaved;
-      setIsSaved(newSavedState);
-      
-      const response = await fetch('/api/me/saved-events', {
-        method: isSaved ? 'DELETE' : 'POST',
+      const response = await fetch(endpoint, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
+        credentials: 'include', 
         body: JSON.stringify({
           eventId: event.id,
-          eventTitle: cleanTitle 
+          eventTitle: cleanTitle
         })
       });
 
-      const responseData = await response.json();
-      console.log('API Response:', responseData);
-
       if (!response.ok) {
-        setIsSaved(previousSavedState);
-        throw new Error(responseData.error || `Failed to ${previousSavedState ? 'remove' : 'save'} event`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${previousSavedState ? 'unsave' : 'save'} event`);
       }
 
-      const action = newSavedState ? 'saved' : 'removed from saved events';
-      const eventTitle = cleanTitle.length > 50 ? cleanTitle.substring(0, 50) + '...' : cleanTitle;
-      alert(`✓ "${eventTitle}" has been ${action}!`);
-      
+      const action = newSavedState ? 'saved to your events' : 'removed from saved events';
+      const eventTitle = cleanTitle.length > 40 ? cleanTitle.substring(0, 40) + '...' : cleanTitle;
+      showSaveAlert(`"${eventTitle}" has been ${action}!`, 'success');
       
       setTimeout(() => {
         User.checkAuth();
-      }, 2000); 
+      }, 500);
       
     } catch (error) {
-      console.error('Error saving event:', error);
+      console.error('Error saving/unsaving event:', error);
       setIsSaved(previousSavedState);
-      const action = previousSavedState ? 'remove' : 'save';
-      alert(`Failed to ${action} event. Please try again.`);
+      const action = newSavedState ? 'save' : 'remove';
+      showSaveAlert(`Failed to ${action} event. ${error instanceof Error ? error.message : 'Please try again.'}`, 'error');
     } finally {
       setSaveLoading(false);
     }
@@ -236,204 +206,297 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
   const chipProps = getChipProps();
 
   return (
-    <Card 
-      sx={{ 
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-        '&:hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: (theme) => theme.shadows[8],
-        },
-        ...(hasStatus && (status === 'CANCELLED' || status === 'CANCELED' || status === 'SOLD OUT') && {
-          opacity: 0.8,
-          filter: 'grayscale(20%)'
-        })
-      }}
-      elevation={2}
-    >
-      <Box sx={{ position: 'relative' }}>
-        <CardMedia
-          component="img"
-          height="200"
-          image={event.image}
-          alt={cleanTitle}
-          onError={(e) => { 
-            e.currentTarget.src = "https://via.placeholder.com/400x300?text=Event+Image";
-          }}
-          sx={{
-            objectFit: 'cover'
-          }}
-        />
-        <Chip
-          {...chipProps}
-          size="small"
-          sx={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            color: 'white',
-            fontWeight: chipProps.fontWeight,
-            // Special styling for status chips
-            ...(hasStatus && {
-              fontSize: '0.75rem',
-              fontWeight: 'bold',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-            })
-          }}
-        />
-        
-        {/* Save Button */}
-        {User.isAuthenticated && User.user && (
-          <Tooltip title={isSaved ? 'Remove from saved events' : 'Save event'}>
-            <IconButton
-              onClick={handleSaveEvent}
-              disabled={saveLoading}
-              sx={{
-                position: 'absolute',
-                top: 8,
-                left: 8,
-                bgcolor: isSaved ? '#FFEB3B' : 'rgba(255, 255, 255, 0.9)', 
-                color: isSaved ? '#F57C00' : 'rgba(0, 0, 0, 0.7)', 
-                border: isSaved ? '2px solid #FFC107' : '1px solid rgba(0, 0, 0, 0.1)',
-                boxShadow: isSaved 
-                  ? '0 0 20px rgba(255, 193, 7, 0.6), 0 4px 8px rgba(255, 193, 7, 0.3)' 
-                  : '0 2px 4px rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  bgcolor: isSaved ? '#FDD835' : 'rgba(255, 255, 255, 1)',
-                  transform: 'scale(1.1)',
-                  boxShadow: isSaved 
-                    ? '0 0 25px rgba(255, 193, 7, 0.8), 0 6px 12px rgba(255, 193, 7, 0.4)' 
-                    : '0 4px 8px rgba(0, 0, 0, 0.15)',
-                },
-                '&:disabled': {
-                  bgcolor: isSaved ? '#FFF176' : 'rgba(255, 255, 255, 0.7)',
-                  color: isSaved ? '#F57C00' : 'rgba(0, 0, 0, 0.4)',
-                  opacity: 0.8,
-                },
-                transition: 'all 0.3s ease-in-out',
-                width: 40,
-                height: 40,
-              }}
-              size="small"
-            >
-              {saveLoading ? (
-                <div style={{ 
-                  width: 18, 
-                  height: 18, 
-                  border: '3px solid currentColor', 
-                  borderTop: '3px solid transparent', 
-                  borderRadius: '50%', 
-                  animation: 'spin 1s linear infinite' 
-                }} />
-              ) : isSaved ? (
-                <Bookmark fontSize="medium" sx={{ color: '#E65100', fontWeight: 'bold' }} />
-              ) : (
-                <BookmarkBorder fontSize="medium" />
-              )}
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
-
-      <CardContent sx={{ flexGrow: 1, pb: 1 }}>
-        <Typography 
-          variant="h6" 
-          component="h3" 
-          gutterBottom 
-          sx={{
-            fontWeight: 'bold',
-            lineHeight: 1.3,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            minHeight: '2.6em',
-            // Add strikethrough for cancelled events
-            ...(hasStatus && (status === 'CANCELLED' || status === 'CANCELED') && {
-              textDecoration: 'line-through',
-              color: 'text.secondary'
-            })
-          }}
-        >
-          {cleanTitle}
-        </Typography>
-        
-        <Typography 
-          variant="body2" 
-          color="text.secondary" 
-          sx={{
-            mb: 2,
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            minHeight: '3.6em'
-          }}
-        >
-          {event.description}
-        </Typography>
-
-        <Stack spacing={1}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <LocationOn fontSize="small" color="action" />
-            <Typography 
-              variant="body2" 
-              color="text.secondary"
-              sx={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {event.location}
-            </Typography>
-          </Box>
+    <>
+      <Card 
+        sx={{ 
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: (theme) => theme.shadows[8],
+          },
+          ...(hasStatus && (status === 'CANCELLED' || status === 'CANCELED' || status === 'SOLD OUT') && {
+            opacity: 0.8,
+            filter: 'grayscale(20%)'
+          })
+        }}
+        elevation={2}
+      >
+        <Box sx={{ position: 'relative' }}>
+          <CardMedia
+            component="img"
+            height="200"
+            image={event.image || "https://via.placeholder.com/400x300?text=Event+Image"}
+            alt={cleanTitle}
+            sx={{ objectFit: 'cover' }}
+          />
           
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <EventIcon fontSize="small" color="action" />
-            <Typography variant="body2" color="text.secondary">
-              {formattedDate}
-            </Typography>
-            {formattedTime !== 'TBA' && (
-              <>
-                <AccessTime fontSize="small" color="action" sx={{ ml: 1 }} />
-                <Typography variant="body2" color="text.secondary">
-                  {formattedTime}
-                </Typography>
-              </>
-            )}
-          </Box>
-        </Stack>
-      </CardContent>
+          {/* Price/Status Chip */}
+          <Chip
+            {...chipProps}
+            size="small"
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              color: 'white',
+              fontWeight: chipProps.fontWeight,
+              ...(hasStatus && {
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+              })
+            }}
+          />
+          
+          {/* Save Button */}
+          {User.isAuthenticated && User.user && (
+            <Tooltip title={isSaved ? 'Remove from saved events' : 'Save event'}>
+              <IconButton
+                onClick={handleSaveEvent}
+                disabled={saveLoading}
+                sx={{
+                  position: 'absolute',
+                  top: 8,
+                  left: 8,
+                  width: 42,
+                  height: 42,
+                 
+                  bgcolor: isSaved 
+                    ? 'rgba(255, 235, 59, 0.95)' 
+                    : 'rgba(255, 255, 255, 0.9)', 
+                  color: isSaved 
+                    ? '#E65100' 
+                    : 'rgba(0, 0, 0, 0.7)', 
+                  border: isSaved 
+                    ? '2px solid #FF9800' 
+                    : '2px solid rgba(255, 255, 255, 0.8)', 
 
-      <CardActions sx={{ p: 2, pt: 0 }}>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<Visibility />}
-          onClick={handleViewDetails}
-          fullWidth
-          sx={{ 
-            textTransform: 'none',
-            fontWeight: 'medium',
-            py: 1
+                  boxShadow: isSaved 
+                    ? '0 0 20px rgba(255, 152, 0, 0.6), 0 4px 12px rgba(255, 152, 0, 0.4), inset 0 0 10px rgba(255, 193, 7, 0.3)' 
+                    : '0 2px 8px rgba(0, 0, 0, 0.15)',
+                  
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    bgcolor: isSaved 
+                      ? 'rgba(255, 221, 51, 1)' 
+                      : 'rgba(255, 255, 255, 1)', 
+                    boxShadow: isSaved 
+                      ? '0 0 25px rgba(255, 152, 0, 0.8), 0 6px 16px rgba(255, 152, 0, 0.5), inset 0 0 15px rgba(255, 193, 7, 0.4)' 
+                      : '0 4px 12px rgba(0, 0, 0, 0.2)',
+                    // Pulse animation for saved state
+                    ...(isSaved && {
+                      animation: 'pulse 0.6s ease-in-out'
+                    })
+                  },
+                  
+                  '&:active': {
+                    transform: 'scale(0.95)',
+                  },
+                  
+                  '&:disabled': {
+                    bgcolor: isSaved 
+                      ? 'rgba(255, 235, 59, 0.7)' 
+                      : 'rgba(255, 255, 255, 0.6)',
+                    opacity: 0.8,
+                  },
+                  
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  
+                  // Additional glow effect for saved state
+                  ...(isSaved && {
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: -2,
+                      left: -2,
+                      right: -2,
+                      bottom: -2,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(45deg, #FFD700, #FF8F00, #FFD700)',
+                      zIndex: -1,
+                      opacity: 0.3,
+                      filter: 'blur(4px)',
+                    }
+                  })
+                }}
+                size="small"
+              >
+                {saveLoading ? (
+                  <Box
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      border: '3px solid currentColor',
+                      borderTop: '3px solid transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }}
+                  />
+                ) : isSaved ? (
+                  <Bookmark 
+                    fontSize="medium" 
+                    sx={{ 
+                      color: '#D84315',
+                      filter: 'drop-shadow(0 2px 4px rgba(216, 67, 21, 0.3))',
+                      fontSize: '1.4rem'
+                    }} 
+                  />
+                ) : (
+                  <BookmarkBorder 
+                    fontSize="medium" 
+                    sx={{ 
+                      fontSize: '1.4rem',
+                      transition: 'all 0.2s ease'
+                    }} 
+                  />
+                )}
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
+
+        <CardContent sx={{ flexGrow: 1, pb: 1 }}>
+          <Typography 
+            variant="h6" 
+            component="h3" 
+            gutterBottom 
+            sx={{
+              fontWeight: 'bold',
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              minHeight: '2.6em',
+              ...(hasStatus && (status === 'CANCELLED' || status === 'CANCELED') && {
+                textDecoration: 'line-through',
+                color: 'text.secondary'
+              })
+            }}
+          >
+            {cleanTitle}
+          </Typography>
+          
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{
+              mb: 2,
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              minHeight: '3.6em'
+            }}
+          >
+            {event.description}
+          </Typography>
+
+          <Stack spacing={1}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <LocationOn fontSize="small" color="action" />
+              <Typography 
+                variant="body2" 
+                color="text.secondary"
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {event.location}
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <EventIcon fontSize="small" color="action" />
+              <Typography variant="body2" color="text.secondary">
+                {formattedDate}
+              </Typography>
+              {formattedTime !== 'TBA' && (
+                <>
+                  <AccessTime fontSize="small" color="action" sx={{ ml: 1 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    {formattedTime}
+                  </Typography>
+                </>
+              )}
+            </Box>
+          </Stack>
+        </CardContent>
+
+        <CardActions sx={{ p: 2, pt: 0 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Visibility />}
+            onClick={handleViewDetails}
+            fullWidth
+            sx={{ 
+              textTransform: 'none',
+              fontWeight: 'medium',
+              py: 1
+            }}
+          >
+            View Details
+          </Button>
+        </CardActions>
+
+        {/* CSS Animations */}
+        <style jsx>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          
+          @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+          }
+        `}</style>
+      </Card>
+
+      {/* Enhanced Alert/Snackbar */}
+      <Snackbar
+        open={showAlert}
+        autoHideDuration={4000}
+        onClose={() => setShowAlert(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{
+          '& .MuiSnackbarContent-root': {
+            minWidth: '300px'
+          }
+        }}
+      >
+        <Alert 
+          onClose={() => setShowAlert(false)} 
+          severity={alertSeverity}
+          sx={{
+            width: '100%',
+            fontSize: '0.95rem',
+            '& .MuiAlert-message': {
+              fontWeight: 500
+            },
+            ...(alertSeverity === 'success' && {
+              bgcolor: 'success.light',
+              color: 'success.contrastText',
+              '& .MuiAlert-icon': {
+                color: 'success.main'
+              }
+            })
           }}
+          elevation={6}
+          variant="filled"
         >
-          View Details
-        </Button>
-      </CardActions>
-
-      {/* spin animation */}
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </Card>
+          {alertMessage}
+        </Alert>
+      </Snackbar>
+    </>
   );
 };
